@@ -16,8 +16,8 @@ Trabalho Prático da disciplina **Engenharia de Software II** — UFMG.
 
 Ferramenta de linha de comando (CLI) que **identifica code smells em nível de função em código Python e sugere refatorações automaticamente**, a partir da mineração de repositórios Git/GitHub. O fluxo é **totalmente automatizado** da entrada (arquivo ou repositório) à saída (lista de diffs sugeridos); **a única etapa humana é a aprovação final de cada diff** pelo usuário. O sistema atua em duas etapas neurais conectadas por um mecanismo de roteamento:
 
-1. **Classificador multilabel** — recebe uma função e atribui probabilidades a cada uma das cinco classes de smell (uma função pode apresentar múltiplos smells simultaneamente).
-2. **Adaptadores especializados (LoRA)** — para cada smell predito acima do limiar, o sistema invoca o adaptador correspondente, treinado especificamente para refatorar aquele tipo de smell, e gera uma sugestão de versão refatorada.
+1. **Classificador single-label iterativo** — recebe uma função e atribui probabilidades a **6 classes** (5 smells + 1 classe `clean`) via *softmax*. Em cada passada, o smell de maior probabilidade é selecionado.
+2. **Adaptadores especializados (LoRA)** — uma vez identificado o smell dominante, o adaptador correspondente gera a refatoração. A função refatorada **volta ao classificador em uma nova iteração**; o ciclo continua até a classe `clean` ser predita ou um critério de parada ser atingido.
 
 ### Escopo: smells intra-função
 
@@ -44,18 +44,34 @@ Todos retirados do catálogo de Fowler (*Refactoring*, 2nd ed., 2018) e cobertos
 A escolha foi por uma pipeline **fully-neural end-to-end**: tanto a detecção quanto a geração da refatoração são feitas por modelos treinados, sem heurísticas estáticas no caminho de inferência. Três motivos justificam:
 
 - **Limiares são contextuais.** Uma função de teste pode tolerar mais LOC; uma função de I/O pode tolerar mais aninhamento. Regras com limiares fixos não capturam contexto. Um classificador treinado em código real aprende a tolerar variações que humanos toleram.
-- **Multilabel é natural.** Uma mesma função pode apresentar Long Method, Magic Numbers e Deep Nesting simultaneamente. Sigmoid por classe resolve sem regras de desempate.
+- **Composição iterativa reflete o processo real de refatoração.** Refatorações cascateiam: extrair um método muda quais parâmetros são longos, quais constantes mágicas remanescentes ainda existem, e onde os aninhamentos profundos persistem. Tratar um smell de cada vez e re-classificar o resultado captura essa dinâmica; estratégias *one-shot* ignoram a interação entre passos.
 - **Escalabilidade do design.** Adicionar um sexto smell no futuro é adicionar uma sexta classe ao classificador e um sexto adaptador, sem reescrita de regras de engenharia.
 
 Os adaptadores LoRA (Low-Rank Adaptation) permitem manter cinco geradores especializados sem o custo proibitivo de treinar e armazenar cinco modelos completos: todos os adaptadores compartilham o **mesmo modelo base** pré-treinado, e o roteador apenas troca qual adaptador está ativo durante a inferência. Cada adaptador pesa entre 5-50 MB e treina em GPU gratuita (Google Colab / Kaggle).
+
+### Estratégia de detecção: iterativo vs. multilabel
+
+A configuração padrão é o classificador single-label iterativo (6 classes via *softmax*). Em paralelo, uma cabeça de classificação **multilabel** (sigmoid por classe) é treinada sobre o **mesmo encoder**, com custo marginal mínimo, para servir como *fallback* empírico.
+
+Critério de seleção, avaliado no held-out manual:
+
+- **Iterativo vence** se *exact-match rate* da sequência de classificações > 70% em funções com múltiplos smells **e** média de iterações por função < 2.5.
+- **Caso contrário**, adota-se a cabeça multilabel one-shot.
+
+Esse experimento comparativo entra no relatório como uma RQ secundária — *qual estratégia de roteamento serve melhor para refatoração iterativa de funções?* Custa pouco (uma cabeça extra de classificação sobre o mesmo encoder) e gera evidência publicável.
 
 ### Pipeline de uso
 
 1. Usuário aponta a CLI para um repositório Python (caminho local ou URL Git) ou para um arquivo individual.
 2. O sistema clona/atualiza o repositório e percorre os arquivos `.py`.
 3. **Decomposição AST**: cada arquivo é particionado em funções e métodos (`ast.FunctionDef`, `ast.AsyncFunctionDef`) — operação determinística, sem ML.
-4. Para cada função, **o classificador multilabel** atribui probabilidades a cada smell. Para cada smell acima do limiar, o **adaptador LoRA correspondente** gera a refatoração sugerida.
-5. Os resultados são agregados em uma **árvore hierárquica** que reflete a estrutura do código. O usuário inspeciona os diffs sugeridos e aprova/rejeita cada um — **a aprovação final é a única etapa humana do pipeline**.
+4. Para cada função, executa-se o **loop iterativo de refatoração**:
+   - O classificador prediz a classe (5 smells ou `clean`) via *softmax*.
+   - Se `clean`, encerra para essa função.
+   - Caso contrário, o adaptador LoRA do smell predito gera a versão refatorada.
+   - A versão refatorada volta ao classificador e o ciclo se repete.
+   - **Critérios de parada adicionais:** (a) máximo de `K=5` iterações; (b) confiança máxima abaixo de limiar mínimo; (c) oscilação entre dois smells em iterações consecutivas. Em (b) e (c), a função é flagada para revisão humana.
+5. Os resultados são agregados em uma **árvore hierárquica** que reflete a estrutura do código, com o **trace iterativo** completo de cada função. O usuário inspeciona os diffs sugeridos (passo a passo) e aprova/rejeita cada um — **a aprovação final é a única etapa humana do pipeline**.
 
 ### Saída em árvore
 
@@ -63,21 +79,30 @@ Os adaptadores LoRA (Low-Rank Adaptation) permitem manter cinco geradores especi
 projeto/
 ├── src/parser.py
 │   ├── class Tokenizer
-│   │   ├── tokenize()           [Long Method (0.91), Magic Numbers (0.67)]
-│   │   ├── _peek()              [clean]
-│   │   └── _consume()           [Magic Numbers (0.82)]
-│   └── helper_normalize()       [Deep Nesting (0.78)]
+│   │   ├── tokenize()
+│   │   │     iter 1: Long Method (0.91)    → extract _scan_token()
+│   │   │     iter 2: Magic Numbers (0.74)  → constante TOKEN_MAX_LEN
+│   │   │     iter 3: clean                 → done (3 iterações)
+│   │   ├── _peek()                         clean (0 iterações)
+│   │   └── _consume()
+│   │         iter 1: Magic Numbers (0.82)  → constante BUFFER_SIZE
+│   │         iter 2: clean
+│   └── helper_normalize()
+│         iter 1: Deep Nesting (0.78)       → guard clauses
+│         iter 2: clean
 └── src/cli.py
-    └── main()                   [Long Parameter List (0.85)]
+    └── main()
+          iter 1: Long Parameter List (0.85) → CliConfig dataclass
+          iter 2: clean
 ```
 
-Cada smell é apresentado com sua probabilidade de classificação. A agregação em árvore tem um bônus arquitetural: contagem de smells por classe pode sinalizar smells de nível mais alto (ex.: classes com mais de 70% dos métodos flagueados como Long Method tendem a ser God Class), abrindo uma extensão natural do trabalho **sem retreinamento**. Não é objetivo do TP, mas a arquitetura habilita.
+Cada função produz um **trace iterativo** que mostra cada smell endereçado, na ordem detectada, com a refatoração aplicada. O trace é parte do output da CLI e da avaliação — ajuda o usuário a entender o raciocínio passo a passo e o avaliador a auditar o sistema. Como bônus arquitetural, contagem de smells por classe ao longo dos traces pode sinalizar smells de nível mais alto (ex.: classes com mais de 70% dos métodos flagueados como Long Method tendem a ser God Class), abrindo uma extensão natural do trabalho **sem retreinamento**. Não é objetivo do TP, mas a arquitetura habilita.
 
 ### Construção do dataset
 
 Como a detecção é fully-neural, a qualidade do classificador depende diretamente da qualidade dos rótulos. A coleta combina três fontes complementares:
 
-- **Fonte primária — refactoring commits via PyDriller.** Filtragem de commits cuja mensagem mencione palavras-chave de cada smell (`extract method`, `rename parameter`, `introduce constant`, `flatten nesting`, `remove dead code`). A função *antes* do commit é exemplo positivo daquele smell; a função *depois* é exemplo limpo. Validação automática via *AST diff* confirma que o tipo de mudança bate com o que a mensagem alega.
+- **Fonte primária — refactoring commits via PyDriller.** Filtragem de commits cuja mensagem mencione palavras-chave de cada smell (`extract method`, `rename parameter`, `introduce constant`, `flatten nesting`, `remove dead code`). A função *antes* do commit é exemplo positivo daquele smell; a função *depois* serve como entrada potencial da próxima iteração — pode conter outros smells remanescentes, e preservar isso é importante para o **realismo distribucional** do treino dos LoRAs (eles precisam ver entradas parcialmente refatoradas, não apenas funções "100% sujas"). Validação automática via *AST diff* confirma que o tipo de mudança bate com o que a mensagem alega. Esse processo gera naturalmente **rótulos single-label**: cada commit endereça um smell, então cada par `(antes, depois)` recebe uma label única correspondente ao smell endereçado pelo commit.
 - **Fonte secundária — bootstrap via análise estática.** Ferramentas como Pylint, Lizard e Rope geram **silver labels** para uma primeira iteração de treino. Um subconjunto é então revisado manualmente pelos autores para corrigir erros sistemáticos antes do retreino final.
 - **Fonte terciária — held-out manual.** Os autores rotulam manualmente cerca de 100 funções por classe (~600 funções no total) exclusivamente para o conjunto de **avaliação**, garantindo que a métrica final seja honesta e independente das heurísticas de mineração.
 
@@ -87,7 +112,7 @@ A mineração serve simultaneamente os dois modelos: cada par `(antes, depois)` 
 
 A qualidade do sistema será avaliada em três dimensões, com baselines comparativos:
 
-- **Classificação:** precision, recall, F1 por classe e *macro-F1*.
+- **Classificação:** precision, recall, F1 por classe e *macro-F1* (head single-label e head multilabel comparados); *exact-match rate* da sequência de classificações no loop iterativo; distribuição do número de iterações por função (média, p95).
 - **Refatoração — corretude:** *execution-based* — o código refatorado continua passando nos testes originais do repositório-alvo.
 - **Refatoração — qualidade subjetiva:** micro-survey com 3-5 avaliadores externos classificando refatorações em escala de qualidade (idiomaticidade, clareza, granularidade da decomposição).
 
