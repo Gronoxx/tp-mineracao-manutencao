@@ -1,4 +1,4 @@
-# TP — Mineração de Repositórios: Detecção e Refatoração de Code Smells em Funções Python
+# TP — Mineração de Repositórios: Detecção e Refatoração de Code Smells em Python
 
 Trabalho Prático da disciplina **Engenharia de Software II** — UFMG.
 
@@ -14,171 +14,199 @@ Trabalho Prático da disciplina **Engenharia de Software II** — UFMG.
 
 ## 2. Sobre o Sistema
 
-Ferramenta de linha de comando (CLI) que **identifica code smells em nível de função em código Python e sugere refatorações automaticamente**, a partir da mineração de repositórios Git/GitHub. O fluxo é **totalmente automatizado** da entrada (arquivo ou repositório) à saída (lista de diffs sugeridos); **a única etapa humana é a aprovação final de cada diff** pelo usuário. O sistema atua em duas etapas neurais conectadas por um mecanismo de roteamento:
+Ferramenta de linha de comando (CLI) que **identifica 12 code smells em código Python e sugere refatorações automaticamente** para um subset desses smells, a partir da mineração de repositórios Git/GitHub. O fluxo é totalmente automatizado da entrada (arquivo ou repositório) à saída (lista de diffs sugeridos); a única etapa humana é a **aprovação final de cada diff** pelo usuário.
 
-1. **Classificador single-label iterativo** — recebe uma função e atribui probabilidades a **6 classes** (5 smells + 1 classe `clean`) via *softmax*. Em cada passada, o smell de maior probabilidade é selecionado.
-2. **Adaptadores especializados (LoRA)** — uma vez identificado o smell dominante, o adaptador correspondente gera a refatoração. A função refatorada **volta ao classificador em uma nova iteração**; o ciclo continua até a classe `clean` ser predita ou um critério de parada ser atingido.
+A escolha do mecanismo de detecção (regras estáticas vs. ML) é **per-smell**, justificada pela literatura empírica acumulada de 1976 a 2026 (vide catálogo de evidências em `docs/`). ML é adotado apenas onde há evidência consistente de gap sobre regras (Beyazit et al. 2026; Liu et al. 2018, 2023; Kovačević et al. 2022); regras são adotadas onde a literatura confirma equivalência ou superioridade, ou onde o problema é estruturalmente determinístico via AST.
 
-### Escopo: smells intra-função
+### Os 12 smells cobertos
 
-Restringimos deliberadamente o escopo a **smells que vivem dentro de uma função** (não cobrimos God Class, Shotgun Surgery, Divergent Change ou outros smells de nível de classe / projeto). Três motivos técnicos justificam o recorte:
+Organizados em três camadas, com detecção em mecanismos distintos:
 
-- A função é a unidade natural para um modelo base de 1.5B parâmetros: cabe no contexto sem truncamento e tem fronteiras semânticas claras.
-- Smells intra-função têm sinais estruturais objetivos (LOC, complexidade ciclomática, número de parâmetros, profundidade de aninhamento) que o classificador aprende a detectar a partir dos dados, sem necessidade de heurísticas *hardcoded*.
-- A decomposição de um arquivo em funções é determinística via AST do Python — não precisa de ML.
+#### Camada 1 — Regras estáticas core (5 smells)
 
-### Os cinco smells atacados
-
-Todos retirados do catálogo de Fowler (*Refactoring*, 2nd ed., 2018) e cobertos por literatura acadêmica de detecção de smells (Tsantalis, Palomba, Madeyski-Lewowski).
-
-| # | Smell | Sinais característicos | Refatoração-alvo (LoRA) |
+| # | Smell | Mecanismo | Detalhe |
 |---|---|---|---|
-| 1 | **Long Method** | LOC alto, CC alta, múltiplas responsabilidades | Extract Method — escolher onde cortar |
-| 2 | **Long Parameter List** | número de parâmetros alto, parâmetros logicamente correlacionados | Introduce Parameter Object |
-| 3 | **Magic Numbers / Strings** | literais não-triviais usados sem nome semântico | Replace with Named Constant |
-| 4 | **Deeply Nested Conditional** | profundidade de aninhamento elevada, lógica de fluxo embolada | Guard Clauses / Decompose Conditional |
-| 5 | **Dead Code intra-função** | branches inalcançáveis, variáveis e parâmetros não usados | Remover (com confirmação de equivalência semântica) |
+| 1 | **Long Method** | Lizard `-L 30` + Pylint R0915/R0912 | F1 0.84 cross-project (Beyazit 2026); gap +3pp para ML não justifica complexidade |
+| 2 | **Long Parameter List** | AST parameter count (stdlib) | Regras vencem ML por 6pp (Beyazit 2026) |
+| 3 | **Magic Numbers / Strings** | ruff PLR2004 + extensão AST custom | Cobre comparações + assignments + strings |
+| 4 | **Deeply Nested Conditional** | pylint R1702 (threshold 3) | Contagem AST exata |
+| 5 | **Dead Code intra-função** | pylint W0101+W0612+W0613 + vulture | ~70% casos sintáticos cobertos |
+
+#### Camada 2 — Regras estáticas adicionais (4 smells)
+
+| # | Smell | Mecanismo | Detalhe |
+|---|---|---|---|
+| 6 | **Refused Bequest** | MRO traversal + override count | Regras vencem ML por 7pp (Beyazit 2026) |
+| 7 | **Duplicate Code Tipo-1/2/3** | NiCad (Python support) ou AST hash | Regras textuais/sintáticas saturadas (~F1 0.95) |
+| 8 | **Long Message Chain** | Algoritmo PyExamine portado | Contagem de chamadas encadeadas |
+| 9 | **Middle Man** | Algoritmo PyExamine portado, intra-arquivo | Razão de delegação por método |
+
+#### Camada 3 — Detecção ML class-scope (3 smells)
+
+| # | Smell | Mecanismo | F1 esperado em Python |
+|---|---|---|---|
+| 10 | **Feature Envy** | Qwen2.5-Coder-1.5B + LoRA classifier head | ~0.65–0.80 |
+| 11 | **God Class / Blob** | Mesmo modelo base, LoRA classifier separado | ~0.70–0.85 |
+| 12 | **Data Class** | Mesmo modelo base, LoRA classifier separado | ~0.70–0.85 |
+
+ML é justificado para esses três pela literatura recente (Beyazit 2026: gaps de +8pp, +23-28pp, +11pp respectivamente em ground truth humano cross-project).
+
+### Stack ML unificado
+
+A detecção ML class-scope e a refatoração via LoRAs compartilham **um único modelo base** carregado em memória — Qwen2.5-Coder-1.5B. Adaptadores LoRA são swapados conforme a tarefa:
+
+- **7 LoRAs de refatoração**: Long Method (Extract Method), Long Parameter List (Introduce Parameter Object), Magic Numbers (Replace with Named Constant), Deep Nesting (Guard Clauses), Dead Code (Remove), Feature Envy (Move Method), God Class (Extract Class)
+- **3 LoRAs de classificação**: Feature Envy, God Class, Data Class — multilabel sigmoid head sobre embedding da classe
+- **1 LoRA classifier de Long Method** — treinado apenas para **ablação científica no paper** (comparação rules vs. ML), não usado na pipeline de produção
+
+Total: **11 LoRAs sobre o mesmo modelo base**. Cada LoRA pesa 5–50 MB e treina em 1–3h em GPU gratuita (Google Colab/Kaggle).
 
 ### Por que essa arquitetura
 
-A escolha foi por uma pipeline **fully-neural end-to-end**: tanto a detecção quanto a geração da refatoração são feitas por modelos treinados, sem heurísticas estáticas no caminho de inferência. Três motivos justificam:
+A decisão arquitetural reflete três princípios:
 
-- **Limiares são contextuais.** Uma função de teste pode tolerar mais LOC; uma função de I/O pode tolerar mais aninhamento. Regras com limiares fixos não capturam contexto. Um classificador treinado em código real aprende a tolerar variações que humanos toleram.
-- **Composição iterativa reflete o processo real de refatoração.** Refatorações cascateiam: extrair um método muda quais parâmetros são longos, quais constantes mágicas remanescentes ainda existem, e onde os aninhamentos profundos persistem. Tratar um smell de cada vez e re-classificar o resultado captura essa dinâmica; estratégias *one-shot* ignoram a interação entre passos.
-- **Escalabilidade do design.** Adicionar um sexto smell no futuro é adicionar uma sexta classe ao classificador e um sexto adaptador, sem reescrita de regras de engenharia.
-
-Os adaptadores LoRA (Low-Rank Adaptation) permitem manter cinco geradores especializados sem o custo proibitivo de treinar e armazenar cinco modelos completos: todos os adaptadores compartilham o **mesmo modelo base** pré-treinado, e o roteador apenas troca qual adaptador está ativo durante a inferência. Cada adaptador pesa entre 5-50 MB e treina em GPU gratuita (Google Colab / Kaggle).
-
-### Estratégia de detecção: iterativo vs. multilabel
-
-A configuração padrão é o classificador single-label iterativo (6 classes via *softmax*). Em paralelo, uma cabeça de classificação **multilabel** (sigmoid por classe) é treinada sobre o **mesmo encoder**, com custo marginal mínimo, para servir como *fallback* empírico.
-
-Critério de seleção, avaliado no held-out manual:
-
-- **Iterativo vence** se *exact-match rate* da sequência de classificações > 70% em funções com múltiplos smells **e** média de iterações por função < 2.5.
-- **Caso contrário**, adota-se a cabeça multilabel one-shot.
-
-Esse experimento comparativo entra no relatório como uma RQ secundária — *qual estratégia de roteamento serve melhor para refatoração iterativa de funções?* Custa pouco (uma cabeça extra de classificação sobre o mesmo encoder) e gera evidência publicável.
+- **Honestidade da evidência:** ML é adotado apenas onde a literatura recente (cross-project, ground truth humano, pós-Di Nucci 2018) mostra gap consistente. Para 9 dos 12 smells, regras são equivalentes ou superiores — usar ML neles seria overengineering.
+- **Reuso de infraestrutura:** o mesmo pipeline de mineração via PyDriller serve simultaneamente o treinamento dos LoRAs de refatoração e dos LoRAs de classificação. Um único modelo base. Uma única coleção de pares minerados.
+- **Operação 100% offline:** sem APIs externas. Toda inferência roda localmente em Qwen2.5-Coder-1.5B (~2GB RAM) com adaptadores LoRA leves swapados conforme necessário.
 
 ### Pipeline de uso
 
-1. Usuário aponta a CLI para um repositório Python (caminho local ou URL Git) ou para um arquivo individual.
-2. O sistema clona/atualiza o repositório e percorre os arquivos `.py`.
-3. **Decomposição AST**: cada arquivo é particionado em funções e métodos (`ast.FunctionDef`, `ast.AsyncFunctionDef`) — operação determinística, sem ML.
-4. Para cada função, executa-se o **loop iterativo de refatoração**:
-   - O classificador prediz a classe (5 smells ou `clean`) via *softmax*.
-   - Se `clean`, encerra para essa função.
-   - Caso contrário, o adaptador LoRA do smell predito gera a versão refatorada.
-   - A versão refatorada volta ao classificador e o ciclo se repete.
-   - **Critérios de parada adicionais:** (a) máximo de `K=5` iterações; (b) confiança máxima abaixo de limiar mínimo; (c) oscilação entre dois smells em iterações consecutivas. Em (b) e (c), a função é flagada para revisão humana.
-5. Os resultados são agregados em uma **árvore hierárquica** que reflete a estrutura do código, com o **trace iterativo** completo de cada função. O usuário inspeciona os diffs sugeridos (passo a passo) e aprova/rejeita cada um — **a aprovação final é a única etapa humana do pipeline**.
+1. Usuário aponta a CLI para um arquivo Python individual ou diretório.
+2. **Decomposição AST**: cada arquivo é particionado em funções/métodos (`ast.FunctionDef`) e classes (`ast.ClassDef`).
+3. Para cada função/método: detectores estáticos das camadas 1 e 2 verificam smells aplicáveis.
+4. Para cada classe: detectores estáticos da camada 2 (Refused Bequest, Duplicate, Long Chain, Middle Man) + LoRA classifiers da camada 3 (Feature Envy, God Class, Data Class) executam em paralelo.
+5. Para cada smell detectado em que há LoRA de refatoração disponível (7 dos 12), o LoRA correspondente gera a versão refatorada.
+6. Para os outros 5 smells (Refused Bequest, Duplicate, Long Message Chain, Middle Man, Data Class): a ferramenta apenas reporta o smell com sugestão textual (sem geração automática).
+7. Resultados agregados em árvore hierárquica refletindo a estrutura do código. Usuário inspeciona diffs e aprova/rejeita cada um.
 
 ### Saída em árvore
 
 ```
 projeto/
 ├── src/parser.py
-│   ├── class Tokenizer
+│   ├── class Tokenizer                      [God Class (0.78)]  → sugestão Extract Class
 │   │   ├── tokenize()
-│   │   │     iter 1: Long Method (0.91)    → extract _scan_token()
-│   │   │     iter 2: Magic Numbers (0.74)  → constante TOKEN_MAX_LEN
-│   │   │     iter 3: clean                 → done (3 iterações)
-│   │   ├── _peek()                         clean (0 iterações)
+│   │   │     iter 1: Long Method (rule)     → extract _scan_token()
+│   │   │     iter 2: Magic Numbers (rule)   → constante TOKEN_MAX_LEN
+│   │   │     iter 3: clean
+│   │   ├── _peek()                          clean
 │   │   └── _consume()
-│   │         iter 1: Magic Numbers (0.82)  → constante BUFFER_SIZE
+│   │         iter 1: Magic Numbers (rule)   → constante BUFFER_SIZE
 │   │         iter 2: clean
 │   └── helper_normalize()
-│         iter 1: Deep Nesting (0.78)       → guard clauses
+│         iter 1: Deep Nesting (rule)        → guard clauses
 │         iter 2: clean
 └── src/cli.py
+    ├── class CliRunner                      [Feature Envy (0.71)]  → sugestão Move Method
     └── main()
-          iter 1: Long Parameter List (0.85) → CliConfig dataclass
+          iter 1: Long Parameter List (rule) → CliConfig dataclass
           iter 2: clean
 ```
 
-Cada função produz um **trace iterativo** que mostra cada smell endereçado, na ordem detectada, com a refatoração aplicada. O trace é parte do output da CLI e da avaliação — ajuda o usuário a entender o raciocínio passo a passo e o avaliador a auditar o sistema. Como bônus arquitetural, contagem de smells por classe ao longo dos traces pode sinalizar smells de nível mais alto (ex.: classes com mais de 70% dos métodos flagueados como Long Method tendem a ser God Class), abrindo uma extensão natural do trabalho **sem retreinamento**. Não é objetivo do TP, mas a arquitetura habilita.
+### Construção do dataset (compartilhada)
 
-### Construção do dataset
+O pipeline de mineração via PyDriller serve simultaneamente:
 
-Como a detecção é fully-neural, a qualidade do classificador depende diretamente da qualidade dos rótulos. A coleta combina três fontes complementares:
+- **Treino dos 7 LoRAs de refatoração**: pares `(antes, depois)` extraídos de commits cuja mensagem mencione palavras-chave (`extract method`, `rename parameter`, `introduce constant`, `flatten nesting`, `remove dead code`, `move method`, `extract class`/`split class`).
+- **Treino dos 4 LoRAs de classificação**: o `(antes, smell_label)` é derivado dos mesmos pares — função/classe "antes" é positiva para o smell endereçado pelo commit.
 
-- **Fonte primária — refactoring commits via PyDriller.** Filtragem de commits cuja mensagem mencione palavras-chave de cada smell (`extract method`, `rename parameter`, `introduce constant`, `flatten nesting`, `remove dead code`). A função *antes* do commit é exemplo positivo daquele smell; a função *depois* serve como entrada potencial da próxima iteração — pode conter outros smells remanescentes, e preservar isso é importante para o **realismo distribucional** do treino dos LoRAs (eles precisam ver entradas parcialmente refatoradas, não apenas funções "100% sujas"). Validação automática via *AST diff* confirma que o tipo de mudança bate com o que a mensagem alega. Esse processo gera naturalmente **rótulos single-label**: cada commit endereça um smell, então cada par `(antes, depois)` recebe uma label única correspondente ao smell endereçado pelo commit.
-- **Fonte secundária — bootstrap via análise estática.** Ferramentas como Pylint, Lizard e Rope geram **silver labels** para uma primeira iteração de treino. Um subconjunto é então revisado manualmente pelos autores para corrigir erros sistemáticos antes do retreino final.
-- **Fonte terciária — held-out manual.** Os autores rotulam manualmente cerca de 100 funções por classe (~600 funções no total) exclusivamente para o conjunto de **avaliação**, garantindo que a métrica final seja honesta e independente das heurísticas de mineração.
+Validação automática via AST diff confirma que cada par bate com o tipo de mudança alegado pela mensagem. Pares descartados se inconsistentes.
 
-A mineração serve simultaneamente os dois modelos: cada par `(antes, depois)` extraído fornece `(antes, smell_label)` para o classificador e `(antes, depois)` condicionado em `smell_label` para o adaptador LoRA correspondente.
+Datasets externos complementares para validação cruzada:
+- **MLCQ** (Madeyski & Lewowski 2020): 14k+ samples Java rotulados por 26 desenvolvedores; usado para transfer learning quando aplicável.
+- **SmellyCode++** (Alomari et al. 2025): ~107k Java samples para God Class, Data Class, Feature Envy, Long Method.
+- **GPTCloneBench** (ICSME 2023): 37k+ pares semantic clones inclui Python — disponível se Type-4 clones for incluído (decisão pendente do trio).
 
 ### Avaliação
 
-A qualidade do sistema será avaliada em três dimensões, com baselines comparativos:
+**Detecção:**
+- Held-out manual: ~50 funções + ~30 classes Python rotuladas por 2-3 anotadores (kappa reportado).
+- Métricas: precision, recall, F1 por smell; macro-F1 multilabel para classifiers ML.
+- **Ablação Long Method**: tabela comparativa rules vs. ML classifier reportada no paper.
 
-- **Classificação:** precision, recall, F1 por classe e *macro-F1* (head single-label e head multilabel comparados); *exact-match rate* da sequência de classificações no loop iterativo; distribuição do número de iterações por função (média, p95).
-- **Refatoração — corretude:** *execution-based* — o código refatorado continua passando nos testes originais do repositório-alvo.
-- **Refatoração — qualidade subjetiva:** micro-survey com 3-5 avaliadores externos classificando refatorações em escala de qualidade (idiomaticidade, clareza, granularidade da decomposição).
+**Refatoração:**
+- Execution-based: testes do projeto-alvo passam após refatoração?
+- Avaliação humana: micro-survey 3-5 avaliadores em escala de qualidade (idiomaticidade, clareza, granularidade).
 
-Baselines comparativos:
+**Baselines comparativos:**
+- **B0** — Llama-3.3 zero-shot (modelo grande, apenas para ablação)
+- **B1** — LoRA único multitask (todos smells juntos)
+- **B2** — Oracle routing (limite superior)
+- **B3** — Rope (refatoração mecânica rule-based)
 
-- **B0** — modelo base sem fine-tuning, em modo zero-shot.
-- **B1** — um único modelo fine-tunado com a união das cinco classes (multitask).
-- **B2** — especialistas com roteamento perfeito (*oracle routing*) — limite superior do roteador.
-- **B3** — refatoração mecânica via [Rope](https://github.com/python-rope/rope), biblioteca clássica baseada em regras + transformações mecânicas.
+A inclusão de **B3** é metodologicamente central: posiciona "fully-neural fine-tuned" vs. "rule-based mechanical" como duas filosofias completas. Sistema neural precisa **empatar com Rope em corretude execution-based** e **ganhar em qualidade subjetiva**.
 
-A inclusão de **B3** é metodologicamente central: a comparação não é "ML auxilia regras" — é **fully-neural end-to-end vs. rule-based mechanical**, duas filosofias completas lado a lado. Para o sistema neural se justificar, ele precisa **empatar com Rope em corretude execution-based** e **ganhar em qualidade subjetiva** na avaliação humana.
+### Decisão pendente do trio: workarounds opcionais
+
+Três smells antes "fora do escopo" tiveram workarounds confirmados como viáveis:
+
+- **Type-4 semantic clones**: UniXcoder zero-shot + GPTCloneBench Python pairs (~1-2 sem extras, sem mudança no input)
+- **Shotgun Surgery / Divergent Change**: PyDriller + co-change heuristic (~2-3 sem extras, requer flag `--repo-path`)
+
+A inclusão depende do balanceamento escopo vs. profundidade que o trio decidir.
 
 ---
 
 ## 3. Tecnologias Possíveis
 
-A lista abaixo reúne as tecnologias candidatas para cada componente do sistema. A escolha final entre alternativas será feita ao longo da implementação, conforme as restrições práticas (custo computacional, qualidade do dataset gerado, integração).
-
 ### Mineração de repositórios
 
-- [**PyDriller**](https://github.com/ishepard/pydriller) — framework Python para análise de repositórios Git; principal ferramenta para extração de pares (versão antes / versão depois de um commit de refatoração).
-- [**GitPython**](https://github.com/gitpython-developers/GitPython) — biblioteca para operações Git de baixo nível (apoio).
-- [**PyGithub**](https://github.com/PyGithub/PyGithub) — integração com a API do GitHub para coleta de issues, PRs e metadados que enriquecem o dataset.
+- [**PyDriller**](https://github.com/ishepard/pydriller) — framework Python para análise de repositórios Git; principal ferramenta de mineração de pares para LoRAs e classifiers.
+- [**GitPython**](https://github.com/gitpython-developers/GitPython) — apoio para operações Git de baixo nível.
+- [**PyGithub**](https://github.com/PyGithub/PyGithub) — integração com a API do GitHub para enriquecer o dataset com issues e PRs.
 
-### Decomposição e análise estática (suporte à mineração e features)
+### Decomposição e análise estática (camadas 1 e 2)
 
-- [**ast (stdlib do Python)**](https://docs.python.org/3/library/ast.html) — análise sintática nativa para particionar arquivos em funções/métodos e validar mudanças estruturais (*AST diff*) na mineração.
-- [**Lizard**](https://github.com/terryyin/lizard) — métricas de complexidade ciclomática multi-linguagem; usadas como **features auxiliares** concatenadas aos embeddings do classificador e como filtro de mineração ao construir o dataset.
-- [**radon**](https://github.com/rubik/radon) — métricas adicionais para código Python (Halstead, Maintainability Index).
-- [**Pylint**](https://github.com/pylint-dev/pylint) — gerador de *silver labels* na fase de bootstrap do dataset.
-- [**tree-sitter**](https://github.com/tree-sitter/tree-sitter) — fallback para parsing genérico se necessário.
+- [**ast (stdlib do Python)**](https://docs.python.org/3/library/ast.html) — análise sintática nativa para particionar arquivos em funções/classes e extrair features.
+- [**Lizard**](https://github.com/terryyin/lizard) — métricas de complexidade ciclomática e LOC; insumo principal para Long Method.
+- [**radon**](https://github.com/rubik/radon) — Halstead, Maintainability Index, complexidade.
+- [**Pylint**](https://github.com/pylint-dev/pylint) — R0915, R0912, R0913, R1702, W0101, W0612, W0613 — base para múltiplos detectores estáticos.
+- [**Ruff**](https://github.com/astral-sh/ruff) — PLR2004 (Magic Numbers em comparações) + integração rápida com formato JSON.
+- [**Vulture**](https://github.com/jendrikseipp/vulture) — Dead Code com confidence scoring (60-100%).
+- [**PyExamine**](https://github.com/KarthikShivasankar/python_smells_detector) — referência algorítmica para Long Message Chain e Middle Man.
 
 ### Refatoração mecânica (baseline B3)
 
-- [**Rope**](https://github.com/python-rope/rope) — biblioteca de refactoring para Python, usada como **baseline B3** comparativo. Implementa Extract Method, Introduce Parameter, Rename, entre outros — também útil como gerador de *silver labels* na construção do dataset.
+- [**Rope**](https://github.com/python-rope/rope) — biblioteca de refactoring para Python; usada como **baseline B3** (rule-based mechanical) e como gerador de silver labels para mineração.
 
-### Modelo base e fine-tuning
+### Modelo base e fine-tuning (camada 3 + LoRAs de refatoração)
 
-- [**HuggingFace Transformers**](https://github.com/huggingface/transformers) — carregamento e inferência dos modelos pré-treinados.
+- [**HuggingFace Transformers**](https://github.com/huggingface/transformers) — carregamento e inferência.
 - [**HuggingFace PEFT**](https://github.com/huggingface/peft) — implementação de adaptadores LoRA.
 - [**HuggingFace TRL**](https://github.com/huggingface/trl) — pipeline de fine-tuning supervisionado.
-- [**Qwen2.5-Coder-1.5B**](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B) ou [**CodeT5-base**](https://huggingface.co/Salesforce/codet5-base) — modelo base candidato para geração de código (LoRAs).
-- [**CodeBERT**](https://huggingface.co/microsoft/codebert-base) ou [**GraphCodeBERT**](https://huggingface.co/microsoft/graphcodebert-base) — encoder para o classificador multilabel (embeddings + cabeça densa com saída sigmoide por classe).
+- [**Qwen2.5-Coder-1.5B**](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B) — **modelo base unificado** para todos os 11 LoRAs (7 refatoração + 3 classificação class-scope + 1 ablação Long Method).
+- [**CodeT5-base**](https://huggingface.co/Salesforce/codet5-base) — alternativa de modelo base candidata (decisão final na fase de prototipação).
+
+### Workarounds opcionais (camada 4, decisão do trio)
+
+- [**UniXcoder**](https://huggingface.co/microsoft/unixcoder-base) — encoder pré-treinado em 9 linguagens incluindo Python; zero-shot embedding similarity para detecção de Type-4 clones.
+- [**GPTCloneBench**](https://zenodo.org/records/10198952) — benchmark de 37k+ pares de clones Tipo-4 incluindo Python (CC BY-NC-ND).
 
 ### Interface de linha de comando
 
-- [**Typer**](https://github.com/fastapi/typer) — definição declarativa da CLI (escolha principal).
-- [**Rich**](https://github.com/Textualize/rich) — formatação de saída no terminal, com renderização nativa da árvore hierárquica de resultados e exibição de diffs.
+- [**Typer**](https://github.com/fastapi/typer) — definição declarativa da CLI.
+- [**Rich**](https://github.com/Textualize/rich) — formatação de saída no terminal, renderização nativa da árvore hierárquica e exibição de diffs.
 
 ### Avaliação
 
-- [**pytest**](https://github.com/pytest-dev/pytest) — execução dos testes do repositório-alvo sobre o código refatorado (avaliação *execution-based*).
-- [**scikit-learn**](https://scikit-learn.org) — métricas do classificador (precision, recall, F1, macro-F1) e baselines.
+- [**pytest**](https://github.com/pytest-dev/pytest) — execução dos testes do repositório-alvo (avaliação execution-based).
+- [**scikit-learn**](https://scikit-learn.org) — métricas (precision, recall, F1, macro-F1, MCC) e baselines.
 - [**pandas**](https://pandas.pydata.org) — agregação dos resultados experimentais.
 
 ### Reprodutibilidade e ambiente
 
-- **Docker** — empacotamento do ambiente de execução.
+- **Docker** — empacotamento do ambiente de execução completo (modelo base + LoRAs + ferramentas estáticas).
 - **Make** — automação da pipeline (`make all` reproduz tabelas e figuras do relatório).
 - **Google Colab** ou **Kaggle Notebooks** — ambiente de treinamento (GPU gratuita, 16 GB).
 
 ### Origem dos dados
 
-A coleta combina **Git local** (via PyDriller, sem rate limit, foco em diffs e mensagens de commit que mencionam refatoração) e **GitHub API** (via PyGithub, para enriquecer o dataset com informações de issues e PRs ligadas a commits de refatoração). Repositórios-alvo serão selecionados via [**Seart GitHub Search (GHS)**](https://seart-ghs.si.usi.ch) com filtros de popularidade, atividade e linguagem (Python).
+A coleta primária combina **Git local** (via PyDriller, sem rate limit) e **GitHub API** (via PyGithub, para enriquecer dataset com issues/PRs). Repositórios-alvo selecionados via [**Seart GitHub Search (GHS)**](https://seart-ghs.si.usi.ch) com filtros de popularidade, atividade e linguagem (Python).
 
-Datasets públicos como **MLCQ** (Madeyski & Lewowski, 2020) podem servir como *ground truth* complementar para validação cruzada do classificador, mediante adaptação cross-language (Java→Python).
+Datasets externos para validação cruzada:
+- **MLCQ** ([Zenodo](https://zenodo.org/records/3666840)) — Madeyski & Lewowski 2020.
+- **SmellyCode++** ([Figshare](https://doi.org/10.6084/m9.figshare.28519385.v1)) — Alomari et al. 2025.
+- **GPTCloneBench** ([Zenodo](https://zenodo.org/records/10198952)) — apenas se Type-4 clones for incluído pela decisão do trio.
 
 ---
 
