@@ -137,6 +137,27 @@ Decisões abertas:
 
 Esta camada será implementada **após** a pipeline base de detecção+refatoração estar estável. Se o tempo do TP ficar curto, vira **trabalho futuro documentado no paper** como ameaça à validade reconhecida (sem trava, refatorações sugeridas podem propor mudanças que quebram comportamento legítimo, mitigado pela aprovação humana mas não eliminado).
 
+#### Por que essa camada pode virar outro projeto inteiro
+
+Reconhecemos honestamente que a trava de segurança tem complexidade comparável ao escopo principal do TP. **Dois desafios independentes**, qualquer um capaz de absorver semanas de trabalho:
+
+**Desafio 1 — Gerar testes que verificam comportamento, não apenas exercitem código.**
+Geração automática de testes Python é área de pesquisa ativa. Pynguin foi tese de doutorado; LLM-based test generation (TestPilot, CodaMosa, papers recentes do MIT 2024-25) ainda é open research. Se quisermos qualidade que justifique a trava, provavelmente precisamos de **outro LoRA dedicado à geração de testes** — outro treinamento, outro dataset minerado (pares `(função, suíte de testes válida)`), outras métricas de avaliação (mutation score? branch coverage? equivalência funcional?). Isso por si só é projeto de complexidade similar ao nosso.
+
+**Bônus arquitetural:** se conseguirmos boa geração de testes, o output pode ser oferecido ao usuário como **feature paralela** — "bateria de testes auto-gerados para código legado". Tem valor real para devs que herdam projetos sem cobertura, mas reforça que estamos falando de mini-projeto à parte com escopo próprio.
+
+**Desafio 2 — Onde estão os dados de "parece smell mas não é"?**
+Alternativa ao Desafio 1: em vez de filtrar comportamentalmente via testes, treinar o classifier diretamente em exemplos negativos (padrões que parecem smell mas devem ser preservados — validações de segurança, contratos de API, códigos de protocolo). O problema: **esses dados praticamente não existem em forma estruturada**. Fontes potenciais — todas problemáticas:
+
+- PR reviews com "leave as is": existe, mas dispersa, exige mineração + classificação de comentários em texto livre
+- `# pylint: disable=...` com justificativa: raramente é justificado, e a justificativa (quando existe) é texto não-rotulado
+- Marcações "won't fix" do SonarQube: existem em projetos com SonarQube ativo, mas a base privada da maioria dos repos não expõe esses dados publicamente
+- MLCQ dataset: tem labels "none/minor/major/critical" — label "none" pode significar "não-smelly" OU "smelly mas aceitável no contexto", sem distinguir
+
+**Catalogar e rotular sistematicamente esses dados é um projeto de pesquisa empírica em si** — do tipo que dá um paper inteiro só com a metodologia de coleta.
+
+**Implicação prática:** muito provavelmente a trava completa fica como **trabalho futuro documentado**, com prova-de-conceito limitada se o tempo permitir. Se o trio decidir abraçar parte do Desafio 1 dentro do TP, precisamos cortar escopo em outro lugar (provavelmente os workarounds opcionais saem) — não dá para fazer tudo em 11 semanas.
+
 ### Construção do dataset (compartilhada)
 
 O pipeline de mineração via PyDriller serve simultaneamente:
