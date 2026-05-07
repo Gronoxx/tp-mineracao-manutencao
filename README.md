@@ -22,15 +22,14 @@ A escolha do mecanismo de detecção (regras estáticas vs. ML) é **per-smell**
 
 Organizados em três camadas, com detecção em mecanismos distintos:
 
-#### Camada 1 — Regras estáticas core (5 smells)
+#### Camada 1 — Regras estáticas core (4 smells)
 
 | # | Smell | Mecanismo | Detalhe |
 |---|---|---|---|
-| 1 | **Long Method** | Lizard `-L 30` + Pylint R0915/R0912 | F1 0.84 cross-project (Beyazit 2026); gap +3pp para ML não justifica complexidade |
-| 2 | **Long Parameter List** | AST parameter count (stdlib) | Regras vencem ML por 6pp (Beyazit 2026) |
-| 3 | **Magic Numbers / Strings** | ruff PLR2004 + extensão AST custom | Cobre comparações + assignments + strings |
-| 4 | **Deeply Nested Conditional** | pylint R1702 (threshold 3) | Contagem AST exata |
-| 5 | **Dead Code intra-função** | pylint W0101+W0612+W0613 + vulture | ~70% casos sintáticos cobertos |
+| 1 | **Long Parameter List** | AST parameter count (stdlib) | Regras vencem ML por 6pp (Beyazit 2026) |
+| 2 | **Magic Numbers / Strings** | ruff PLR2004 + extensão AST custom | Cobre comparações + assignments + strings |
+| 3 | **Deeply Nested Conditional** | pylint R1702 (threshold 3) | Contagem AST exata |
+| 4 | **Dead Code intra-função** | pylint W0101+W0612+W0613 + vulture | ~70% casos sintáticos cobertos |
 
 #### Camada 2 — Regras estáticas adicionais (4 smells)
 
@@ -41,25 +40,25 @@ Organizados em três camadas, com detecção em mecanismos distintos:
 | 8 | **Long Message Chain** | Algoritmo PyExamine portado | Contagem de chamadas encadeadas |
 | 9 | **Middle Man** | Algoritmo PyExamine portado, intra-arquivo | Razão de delegação por método |
 
-#### Camada 3 — Detecção ML class-scope (3 smells)
+#### Camada 3 — Detecção ML (4 smells)
 
 | # | Smell | Mecanismo | F1 esperado em Python |
 |---|---|---|---|
+| 9 | **Long Method** | Qwen2.5-Coder-1.5B + LoRA classifier (regras Lizard+Pylint computadas em paralelo apenas para ablação no paper) | ~0.65–0.80 |
 | 10 | **Feature Envy** | Qwen2.5-Coder-1.5B + LoRA classifier head | ~0.65–0.80 |
 | 11 | **God Class / Blob** | Mesmo modelo base, LoRA classifier separado | ~0.70–0.85 |
 | 12 | **Data Class** | Mesmo modelo base, LoRA classifier separado | ~0.70–0.85 |
 
-ML é justificado para esses três pela literatura recente (Beyazit 2026: gaps de +8pp, +23-28pp, +11pp respectivamente em ground truth humano cross-project).
+ML é justificado para Feature Envy, God Class e Data Class pela literatura recente (Beyazit 2026: gaps de +8pp, +23-28pp, +11pp respectivamente em ground truth humano cross-project). **Long Method é uma escolha pragmática**: gap real é apenas +3pp, mas os dados de treino vêm da mesma mineração que faremos para o LoRA de Extract Method (custo zero de aquisição) — então treinamos o classifier também e mantemos as regras estáticas computadas em paralelo apenas para a tabela de ablação rules vs. ML no paper.
 
 ### Stack ML unificado
 
-A detecção ML class-scope e a refatoração via LoRAs compartilham **um único modelo base** carregado em memória — Qwen2.5-Coder-1.5B. Adaptadores LoRA são swapados conforme a tarefa:
+A detecção ML e a refatoração via LoRAs compartilham **um único modelo base** carregado em memória — Qwen2.5-Coder-1.5B. Adaptadores LoRA são swapados conforme a tarefa:
 
-- **7 LoRAs de refatoração**: Long Method (Extract Method), Long Parameter List (Introduce Parameter Object), Magic Numbers (Replace with Named Constant), Deep Nesting (Guard Clauses), Dead Code (Remove), Feature Envy (Move Method), God Class (Extract Class)
-- **3 LoRAs de classificação**: Feature Envy, God Class, Data Class — multilabel sigmoid head sobre embedding da classe
-- **1 LoRA classifier de Long Method** — treinado apenas para **ablação científica no paper** (comparação rules vs. ML), não usado na pipeline de produção
+- **7 LoRAs de refatoração** (R1-R7): Long Method (Extract Method), Long Parameter List (Introduce Parameter Object), Magic Numbers (Replace with Named Constant), Deep Nesting (Guard Clauses), Dead Code (Remove), Feature Envy (Move Method), God Class (Extract Class)
+- **4 LoRAs de classificação** (C1-C4): Long Method, Feature Envy, God Class, Data Class — todos em produção como detectores primários
 
-Total: **11 LoRAs sobre o mesmo modelo base**. Cada LoRA pesa 5–50 MB e treina em 1–3h em GPU gratuita (Google Colab/Kaggle).
+Total: **11 LoRAs sobre o mesmo modelo base**. Cada LoRA pesa 5–50 MB e treina em 1–3h em GPU gratuita (Google Colab/Kaggle). Para Long Method, regras estáticas (Lizard + Pylint) são computadas em paralelo ao classifier, apenas para gerar a tabela de ablação rules vs. ML no paper.
 
 ### Por que essa arquitetura
 
@@ -102,6 +101,41 @@ projeto/
           iter 1: Long Parameter List (rule) → CliConfig dataclass
           iter 2: clean
 ```
+
+### Trava de segurança: distinguir smell real de smell aparente (em desenvolvimento)
+
+Reconhecemos um gap importante: **nem todo código que parece um smell é realmente um problema**. Casos comuns onde refatorar agressivamente quebra comportamento legítimo:
+
+- `if` aninhados profundos em **funções de validação de segurança**, onde cada camada confirma uma pré-condição crítica antes da próxima
+- "Long Method" que é sequência linear de transformações **sem alternativas razoáveis** (parsers, pipelines de ETL)
+- "Magic Numbers" que são **códigos de protocolo bem conhecidos** (HTTP `200`/`404`, bytes hex, RFC constants) cuja substituição por nome adicionaria ruído sem clareza
+- "Dead Code" aparente em **branches dependentes de input runtime** não capturado por análise estática
+- Funções com muitos parâmetros que correspondem a **contratos de API estáveis** cuja mudança quebraria callers externos
+
+A ferramenta precisa diferenciar smells **reais** (refatorar) de padrões que **se parecem com smells mas devem ser preservados** (não refatorar, ou marcar como falso positivo).
+
+#### Direção proposta
+
+Aproveitando que nosso escopo é function-level, a ideia é:
+
+1. Para cada função-alvo de refatoração, **gerar automaticamente um conjunto de testes** que captura o comportamento da versão original.
+2. Aplicar a refatoração proposta pelo LoRA correspondente, gerando a versão modificada.
+3. Executar os testes auto-gerados em **ambas as versões** (original e refatorada).
+4. Se os testes na versão refatorada falharem ou divergirem do comportamento original, **rejeitar automaticamente a refatoração** e marcar o smell como "provável falso positivo — comportamento crítico não preservável".
+5. Se passarem em ambas, apresentar o diff ao usuário (fluxo normal de aprovação manual).
+
+Isso serve duplo propósito: garantia de preservação de comportamento (test-and-roll-back automático) + sinal pedagógico ao usuário (output da CLI inclui seção "refatorações rejeitadas pela trava", indicando candidatos que parecem smells mas provavelmente são intencionais).
+
+#### Status: gap identificado, solução final pendente
+
+Decisões abertas:
+- Mecanismo de geração automática de testes — candidatos: [Pynguin](https://github.com/se2p/pynguin) (search-based), [Hypothesis](https://github.com/HypothesisWorks/hypothesis) (property-based), geração via LLM, ou combinação
+- Cobertura mínima aceitável (~80% de branches? cobertura mutacional?)
+- Tratamento de funções com I/O ou estado externo (auto-mock? skip? marcar como "trava não aplicável"?)
+- Custo computacional adicional aceitável (geração + execução podem dobrar o tempo de inferência)
+- Apresentação visual no output em árvore
+
+Esta camada será implementada **após** a pipeline base de detecção+refatoração estar estável. Se o tempo do TP ficar curto, vira **trabalho futuro documentado no paper** como ameaça à validade reconhecida (sem trava, refatorações sugeridas podem propor mudanças que quebram comportamento legítimo, mitigado pela aprovação humana mas não eliminado).
 
 ### Construção do dataset (compartilhada)
 
