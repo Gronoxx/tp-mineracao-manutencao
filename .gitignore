@@ -10,3 +10,12 @@ venv/
 env/
 .env/
 ENV/
+# Dados minerados (reproduziveis — nao versionar; ver tp-es2-dataset)
+data/
+
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
