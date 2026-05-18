@@ -1,19 +1,10 @@
-from dataclasses import dataclass, field
+"""Shim de compatibilidade — os tipos foram unificados em `core/ast_types.py`
+(D-DEV-18). Mantido como re-export; será removido num ciclo futuro."""
+import sys
+from pathlib import Path
 
-@dataclass
-class FunctionInfo:
-    name: str                       # nome
-    lineno: int                     # linha de início
-    end_lineno: int                 # linha de fim
-    source: str                     # código-fonte da função
-    params: list[str]               # nomes dos parâmetros
-    owner_class: str | None = None  # None se top-level
+_root = str(Path(__file__).resolve().parents[1])
+if _root not in sys.path:
+    sys.path.insert(0, _root)
 
-@dataclass
-class ClassInfo:
-    name: str                                                   # nome
-    lineno: int                                                 # linha inicio
-    end_lineno: int                                             # linha de fim
-    source: str                                                 # codigo fonte
-    methods: list[FunctionInfo] = field(default_factory=list)   # metodos filhos
-    bases: list[str] = field(default_factory=list)              # classes pai como string (para Refused Bequest depois)
+from core.ast_types import ClassInfo, FunctionInfo  # noqa: E402,F401

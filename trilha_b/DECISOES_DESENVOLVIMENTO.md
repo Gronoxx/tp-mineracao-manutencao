@@ -162,4 +162,11 @@ Registro de decisões tomadas durante a implementação que não estavam descrit
 **Impacto:** Risco de mismatch quando Trilha A entregar. Ex: Trilha A pode emitir `smell` em vez de `smell_type`, ou `commit` em vez de `commit_hash`.
 **Ação recomendada:** Compartilhar o pydantic schema (ou um JSON-Schema derivado) entre as duas trilhas; adicionar adapter de campos em `curate.py`.
 
-<!-- Adicionar novas decisões aqui: D-DEV-18, D-DEV-19, etc. -->
+## D-DEV-18 — Schema unificado em `core/` como contrato A↔B
+**Data:** 18/05/2026
+**Contexto:** D-DEV-17 apontou o risco de mismatch entre o formato emitido pela Trilha A (`before/after/smell/commit/name`) e o esperado pela Trilha B (`before_code/after_code/smell_type/commit_hash/function_name`). A reanálise confirmou que o mismatch já era real — o `DataCurator` não leria a saída do minerador. Os tipos `FunctionInfo`/`ClassInfo` também estavam duplicados em `extracao/mineracao/data_structs.py` e `detectores/data_structs.py`.
+**O que foi implementado:** Pacote `core/` no topo do repo — `core/smells.py` (vocabulário canônico R1–R5 + nomes/refatorações), `core/ast_types.py` (`FunctionInfo`/`ClassInfo` unificados) e `core/schema.py` (`RefactoringPair` Pydantic, contrato único, com os campos novos `id`, `commit_msg`, `msg_keywords`, `metrics_*`, `verified`, `detector_*`, `parent_commit`, `n_functions_after`, bloco `review`). `trilha_b/data/schema.py` e os dois `data_structs.py` passam a re-exportar de `core/`.
+**Impacto:** Fecha D-DEV-17. Os campos preenchidos pelo minerador/curador são opcionais com default — fixtures antigas (`trilha_b/data/sample_pairs/*.json`) continuam válidas. Trilha A e B passam a ter uma fonte única de verdade.
+**Ação recomendada:** O minerador (Trilha A) deve emitir registros que validam contra `core.schema.RefactoringPair`. Remover os shims de `data_structs.py`/`schema.py` num ciclo futuro.
+
+<!-- Adicionar novas decisões aqui: D-DEV-19, D-DEV-20, etc. -->
