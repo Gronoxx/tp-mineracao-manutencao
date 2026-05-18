@@ -16,7 +16,10 @@ LORA_TARGET_MODULES = [
     "down_proj",
 ]
 
-GPU_MEMORY_4BIT_THRESHOLD_GB = 8.0
+# D-DEV-03: 6 GB, não 8 — o Qwen2.5-Coder-1.5B em fp16 (~3 GB peso +
+# ativações com gradient_checkpointing) cabe em ~8 GB; ativar 4-bit aí
+# degradaria a LoRA sem necessidade. Abaixo de 6 GB o 4-bit é justificado.
+GPU_MEMORY_4BIT_THRESHOLD_GB = 6.0
 
 
 @dataclass

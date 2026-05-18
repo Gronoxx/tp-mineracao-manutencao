@@ -74,13 +74,15 @@ def _load_and_filter_dataset(data_dir: Path, smell_type: str):
 def _build_formatting_func(smell_type: str, tokenizer):
     import sys
     sys.path.insert(0, str(Path(__file__).parent))
-    from instruction_templates import build_prompt
+    from instruction_templates import build_training_text
 
     def formatting_func(examples):
+        # D-DEV-04: o chat template oficial do tokenizer renderiza a conversa
+        # completa (system/user/assistant) e já fecha os turnos com <|im_end|> —
+        # sem concatenar eos_token manualmente.
         texts = []
         for before, after in zip(examples["before_code"], examples["after_code"]):
-            prompt = build_prompt(smell_type, before, after)
-            texts.append(prompt + tokenizer.eos_token)
+            texts.append(build_training_text(smell_type, before, after, tokenizer))
         return texts
 
     return formatting_func
@@ -143,7 +145,7 @@ def main() -> None:
         logging_steps=cfg.logging_steps,
         save_steps=cfg.save_steps,
         eval_steps=cfg.eval_steps if "validation" in dataset else None,
-        evaluation_strategy="steps" if "validation" in dataset else "no",
+        eval_strategy="steps" if "validation" in dataset else "no",  # D-DEV-14
         save_total_limit=cfg.save_total_limit,
         load_best_model_at_end=cfg.load_best_model_at_end if "validation" in dataset else False,
         metric_for_best_model=cfg.metric_for_best_model,

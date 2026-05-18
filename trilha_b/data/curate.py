@@ -1,11 +1,11 @@
 import json
 import logging
 import csv
+import random
+from collections import Counter
 from pathlib import Path
-from typing import Optional
 
 from datasets import Dataset, DatasetDict
-from sklearn.model_selection import StratifiedShuffleSplit
 
 from schema import RefactoringPair
 
@@ -65,34 +65,54 @@ class DataCurator:
         test: float = 0.1,
         seed: int = 42,
     ) -> tuple[list[dict], list[dict], list[dict]]:
+        """Split train/val/test **agrupado por repositório** (D-DEV-08).
+
+        Funções do mesmo repo nunca caem em splits diferentes — sem isso há
+        vazamento e o F1 reportado infla ~20–30pp (CATALOGO §4: within-project
+        0.85 → cross-project ~0.55–0.65).
+        """
         if abs(train + val + test - 1.0) > 1e-6:
             raise ValueError("train + val + test must sum to 1.0")
         if len(self._pairs) < 5:
             raise ValueError("Need at least 5 validated records to split")
 
-        labels = [p["smell_type"] for p in self._pairs]
-        indices = list(range(len(self._pairs)))
+        # D-DEV-09: mínimo por classe — evita split degenerado (0 amostras de
+        # algum smell em val/test).
+        counts = Counter(p["smell_type"] for p in self._pairs)
+        scarce = {s: n for s, n in counts.items() if n < 3}
+        if scarce:
+            raise ValueError(f"Each smell_type needs >= 3 records to split; scarce: {scarce}")
 
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=(val + test), random_state=seed)
-        train_idx, temp_idx = next(splitter.split(indices, labels))
+        # Particiona os REPOSITÓRIOS (não os registros): cada repo inteiro vai
+        # para um único split. Garante ausência de vazamento por construção e é
+        # robusto para qualquer contagem de repos >= 3.
+        groups = [p.get("repo") or f"__norepo_{i}" for i, p in enumerate(self._pairs)]
+        repos = sorted(set(groups))
+        if len(repos) < 3:
+            raise ValueError(
+                f"Need >= 3 distinct repos for a leakage-free split; got {len(repos)}"
+            )
+        random.Random(seed).shuffle(repos)
+        n = len(repos)
+        n_test = max(1, round(test * n))
+        n_val = max(1, round(val * n))
+        if n_test + n_val >= n:
+            raise ValueError(
+                f"Too few repos ({n}) for a {train:.0%}/{val:.0%}/{test:.0%} split"
+            )
+        test_repos = set(repos[:n_test])
+        val_repos = set(repos[n_test:n_test + n_val])
+        train_repos = set(repos[n_test + n_val:])
 
-        temp_labels = [labels[i] for i in temp_idx]
-        relative_test = test / (val + test)
-        splitter2 = StratifiedShuffleSplit(n_splits=1, test_size=relative_test, random_state=seed)
-        val_rel_idx, test_rel_idx = next(splitter2.split(temp_idx, temp_labels))
+        def _take(repo_set: set) -> list[dict]:
+            return [p for p, g in zip(self._pairs, groups) if g in repo_set]
 
-        val_idx = [temp_idx[i] for i in val_rel_idx]
-        test_idx = [temp_idx[i] for i in test_rel_idx]
-
-        train_data = [self._pairs[i] for i in train_idx]
-        val_data = [self._pairs[i] for i in val_idx]
-        test_data = [self._pairs[i] for i in test_idx]
+        train_data, val_data, test_data = _take(train_repos), _take(val_repos), _take(test_repos)
 
         logger.info(
-            "Split: train=%d  val=%d  test=%d",
-            len(train_data),
-            len(val_data),
-            len(test_data),
+            "Split por repo: train=%d  val=%d  test=%d  (repos: %d/%d/%d)",
+            len(train_data), len(val_data), len(test_data),
+            len(train_repos), len(val_repos), len(test_repos),
         )
         return train_data, val_data, test_data
 
