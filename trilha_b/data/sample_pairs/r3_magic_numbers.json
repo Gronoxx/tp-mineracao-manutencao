@@ -1,0 +1,34 @@
+[
+  {
+    "smell_type": "R3",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "calculate_shipping_cost",
+    "before_code": "def calculate_shipping_cost(weight_kg, distance_km, express):\n    if weight_kg > 30:\n        raise ValueError('Package exceeds maximum weight')\n    base_rate = weight_kg * 2.75\n    distance_surcharge = 0.0\n    if distance_km > 500:\n        distance_surcharge = distance_km * 0.012\n    elif distance_km > 100:\n        distance_surcharge = distance_km * 0.008\n    if express:\n        base_rate *= 1.85\n    tax = (base_rate + distance_surcharge) * 0.07\n    return round(base_rate + distance_surcharge + tax, 2)\n",
+    "after_code": "MAX_PACKAGE_WEIGHT_KG = 30\nBASE_RATE_PER_KG = 2.75\nLONG_DISTANCE_THRESHOLD_KM = 500\nMID_DISTANCE_THRESHOLD_KM = 100\nLONG_DISTANCE_RATE_PER_KM = 0.012\nMID_DISTANCE_RATE_PER_KM = 0.008\nEXPRESS_MULTIPLIER = 1.85\nTAX_RATE = 0.07\n\n\ndef calculate_shipping_cost(weight_kg, distance_km, express):\n    if weight_kg > MAX_PACKAGE_WEIGHT_KG:\n        raise ValueError('Package exceeds maximum weight')\n    base_rate = weight_kg * BASE_RATE_PER_KG\n    distance_surcharge = 0.0\n    if distance_km > LONG_DISTANCE_THRESHOLD_KM:\n        distance_surcharge = distance_km * LONG_DISTANCE_RATE_PER_KM\n    elif distance_km > MID_DISTANCE_THRESHOLD_KM:\n        distance_surcharge = distance_km * MID_DISTANCE_RATE_PER_KM\n    if express:\n        base_rate *= EXPRESS_MULTIPLIER\n    tax = (base_rate + distance_surcharge) * TAX_RATE\n    return round(base_rate + distance_surcharge + tax, 2)\n"
+  },
+  {
+    "smell_type": "R3",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "classify_bmi",
+    "before_code": "def classify_bmi(weight_kg, height_m):\n    if height_m <= 0:\n        raise ValueError('Height must be positive')\n    bmi = weight_kg / (height_m ** 2)\n    if bmi < 18.5:\n        category = 'Underweight'\n    elif bmi < 25.0:\n        category = 'Normal weight'\n    elif bmi < 30.0:\n        category = 'Overweight'\n    else:\n        category = 'Obese'\n    return {'bmi': round(bmi, 1), 'category': category}\n",
+    "after_code": "BMI_UNDERWEIGHT_THRESHOLD = 18.5\nBMI_NORMAL_THRESHOLD = 25.0\nBMI_OVERWEIGHT_THRESHOLD = 30.0\n\nBMI_CATEGORY_UNDERWEIGHT = 'Underweight'\nBMI_CATEGORY_NORMAL = 'Normal weight'\nBMI_CATEGORY_OVERWEIGHT = 'Overweight'\nBMI_CATEGORY_OBESE = 'Obese'\n\n\ndef classify_bmi(weight_kg, height_m):\n    if height_m <= 0:\n        raise ValueError('Height must be positive')\n    bmi = weight_kg / (height_m ** 2)\n    if bmi < BMI_UNDERWEIGHT_THRESHOLD:\n        category = BMI_CATEGORY_UNDERWEIGHT\n    elif bmi < BMI_NORMAL_THRESHOLD:\n        category = BMI_CATEGORY_NORMAL\n    elif bmi < BMI_OVERWEIGHT_THRESHOLD:\n        category = BMI_CATEGORY_OVERWEIGHT\n    else:\n        category = BMI_CATEGORY_OBESE\n    return {'bmi': round(bmi, 1), 'category': category}\n"
+  },
+  {
+    "smell_type": "R3",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "parse_http_response",
+    "before_code": "def parse_http_response(status_code, body, headers):\n    if status_code == 200:\n        return {'ok': True, 'data': body}\n    elif status_code == 201:\n        return {'ok': True, 'data': body, 'created': True}\n    elif status_code == 204:\n        return {'ok': True, 'data': None}\n    elif status_code == 400:\n        return {'ok': False, 'error': 'Bad Request', 'data': body}\n    elif status_code == 401:\n        return {'ok': False, 'error': 'Unauthorized', 'data': None}\n    elif status_code == 403:\n        return {'ok': False, 'error': 'Forbidden', 'data': None}\n    elif status_code == 404:\n        return {'ok': False, 'error': 'Not Found', 'data': None}\n    elif status_code == 429:\n        retry_after = int(headers.get('Retry-After', 60))\n        return {'ok': False, 'error': 'Rate Limited', 'retry_after': retry_after}\n    elif status_code >= 500:\n        return {'ok': False, 'error': 'Server Error', 'data': body}\n    return {'ok': False, 'error': 'Unknown', 'data': body}\n",
+    "after_code": "HTTP_OK = 200\nHTTP_CREATED = 201\nHTTP_NO_CONTENT = 204\nHTTP_BAD_REQUEST = 400\nHTTP_UNAUTHORIZED = 401\nHTTP_FORBIDDEN = 403\nHTTP_NOT_FOUND = 404\nHTTP_TOO_MANY_REQUESTS = 429\nHTTP_SERVER_ERROR_MIN = 500\nDEFAULT_RETRY_AFTER_SECONDS = 60\n\n\ndef parse_http_response(status_code, body, headers):\n    if status_code == HTTP_OK:\n        return {'ok': True, 'data': body}\n    elif status_code == HTTP_CREATED:\n        return {'ok': True, 'data': body, 'created': True}\n    elif status_code == HTTP_NO_CONTENT:\n        return {'ok': True, 'data': None}\n    elif status_code == HTTP_BAD_REQUEST:\n        return {'ok': False, 'error': 'Bad Request', 'data': body}\n    elif status_code == HTTP_UNAUTHORIZED:\n        return {'ok': False, 'error': 'Unauthorized', 'data': None}\n    elif status_code == HTTP_FORBIDDEN:\n        return {'ok': False, 'error': 'Forbidden', 'data': None}\n    elif status_code == HTTP_NOT_FOUND:\n        return {'ok': False, 'error': 'Not Found', 'data': None}\n    elif status_code == HTTP_TOO_MANY_REQUESTS:\n        retry_after = int(headers.get('Retry-After', DEFAULT_RETRY_AFTER_SECONDS))\n        return {'ok': False, 'error': 'Rate Limited', 'retry_after': retry_after}\n    elif status_code >= HTTP_SERVER_ERROR_MIN:\n        return {'ok': False, 'error': 'Server Error', 'data': body}\n    return {'ok': False, 'error': 'Unknown', 'data': body}\n"
+  },
+  {
+    "smell_type": "R3",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "resize_image",
+    "before_code": "def resize_image(width, height, target_size, quality):\n    if quality < 1 or quality > 95:\n        raise ValueError('Quality must be between 1 and 95')\n    aspect = width / height\n    if aspect > 1.0:\n        new_width = target_size\n        new_height = int(target_size / aspect)\n    else:\n        new_height = target_size\n        new_width = int(target_size * aspect)\n    new_width = max(new_width, 16)\n    new_height = max(new_height, 16)\n    return {'width': new_width, 'height': new_height, 'quality': quality}\n",
+    "after_code": "MIN_QUALITY = 1\nMAX_QUALITY = 95\nMIN_DIMENSION_PX = 16\nLANDSCAPE_ASPECT_RATIO = 1.0\n\n\ndef resize_image(width, height, target_size, quality):\n    if quality < MIN_QUALITY or quality > MAX_QUALITY:\n        raise ValueError(f'Quality must be between {MIN_QUALITY} and {MAX_QUALITY}')\n    aspect = width / height\n    if aspect > LANDSCAPE_ASPECT_RATIO:\n        new_width = target_size\n        new_height = int(target_size / aspect)\n    else:\n        new_height = target_size\n        new_width = int(target_size * aspect)\n    new_width = max(new_width, MIN_DIMENSION_PX)\n    new_height = max(new_height, MIN_DIMENSION_PX)\n    return {'width': new_width, 'height': new_height, 'quality': quality}\n"
+  }
+]
