@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposta atualizada — TP Engenharia de Software II</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #fafaf7;
+    --muted: #6b6b6b;
+    --rule: #d8d4cc;
+    --accent: #1f3a5f;
+    --soft: #f0ece3;
+    --softer: #f7f4ec;
+    --highlight: #fff8e8;
+    --confirm: #2d6a4f;
+    --confirm-bg: #d5ead9;
+    --pending: #8a5a1f;
+    --pending-bg: #f0e2cf;
+    --proposal: #4a3878;
+    --proposal-bg: #e1d9f0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.65;
+    font-size: 16px;
+  }
+  .container {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 22px;
+    margin-bottom: 44px;
+  }
+  header .kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 1.75rem;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  header .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    margin: 0 0 8px;
+  }
+  header .version-tag {
+    display: inline-block;
+    background: var(--soft);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    color: var(--accent);
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  h2 {
+    font-size: 1.18rem;
+    margin: 52px 0 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 600;
+  }
+  h3 {
+    font-size: 1.02rem;
+    margin: 28px 0 10px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  p { margin: 0 0 14px; }
+  ul, ol { padding-left: 22px; margin: 8px 0 16px; }
+  li { margin-bottom: 6px; }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--soft);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  abbr {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    border-bottom: 1px dotted var(--accent);
+    cursor: help;
+    text-decoration: none;
+    background: var(--soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 3px;
+    font-size: 0.85em;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    margin: 14px 0 24px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    background: var(--soft);
+    font-weight: 600;
+    border-bottom: 1.5px solid var(--ink);
+    font-size: 0.83rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: center; white-space: nowrap; }
+  td.smell-name { font-weight: 600; white-space: nowrap; }
+  td.f1 {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .layer-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    background: var(--soft);
+    color: var(--accent);
+    border: 1px solid var(--rule);
+    margin-right: 4px;
+  }
+  .verdict {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .v-rules { background: #d8e0ec; color: #1f3a5f; }
+  .v-rules-struct { background: #eef2f7; color: #3d5273; border: 1px dashed #98a8c0; padding: 0 6px; }
+  .v-ml { background: #d5ead9; color: #2d6a4f; }
+  .v-ml-mod { background: #e3f0e9; color: #2d6a4f; }
+  .diagram {
+    background: var(--soft);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 24px 20px;
+    margin: 18px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .callout {
+    background: var(--soft);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    margin: 22px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.95rem;
+  }
+  .callout strong { color: var(--accent); }
+  .callout.proposal {
+    background: var(--proposal-bg);
+    border-left-color: var(--proposal);
+  }
+  .callout.proposal strong { color: var(--proposal); }
+  .callout.pending {
+    background: var(--pending-bg);
+    border-left-color: var(--pending);
+  }
+  .callout.pending strong { color: var(--pending); }
+  .checks {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 16px;
+  }
+  .checks li {
+    padding: 10px 0 10px 32px;
+    position: relative;
+    border-bottom: 1px dashed var(--rule);
+  }
+  .checks li:last-child { border-bottom: none; }
+  .checks li::before {
+    content: "□";
+    position: absolute;
+    left: 6px;
+    top: 8px;
+    color: var(--accent);
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+  .change-summary {
+    background: var(--softer);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 16px 0 8px;
+  }
+  .change-summary h3 {
+    margin-top: 0;
+    color: var(--ink);
+  }
+  .change-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0;
+  }
+  .change-list li {
+    padding: 8px 0 8px 28px;
+    position: relative;
+    border-bottom: 1px dotted var(--rule);
+    font-size: 0.93rem;
+  }
+  .change-list li:last-child { border-bottom: none; }
+  .change-list li::before {
+    content: "→";
+    position: absolute;
+    left: 4px;
+    top: 8px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .work-detail {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+  .work-detail li {
+    margin-bottom: 3px;
+  }
+  footer {
+    margin-top: 56px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 8px 0 16px;
+    font-size: 0.85rem;
+  }
+  .legend-row > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="kicker">TP Engenharia de Software II — Versão consolidada para revisão do trio</div>
+  <h1>Proposta atualizada: Detecção e Refatoração de Code Smells em Python via Roteamento Neural</h1>
+  <p class="subtitle">Versão pós-investigação de literatura. Cada decisão de mecanismo (regra estática vs. ML) está justificada por F1 honestos pós-Di Nucci 2018, em ground truth humano cross-project. <strong>Nada aqui foi fechado sem o trio</strong> — esta proposta consolida o que a evidência aponta, e Bernardo e Filipe ainda precisam confirmar.</p>
+  <span class="version-tag">v2 · maio 2026 · pendente aprovação dos três membros</span>
+</header>
+
+<h2>1. O que mudou desde a primeira proposta</h2>
+
+<div class="change-summary">
+  <h3>Resumo das mudanças propostas</h3>
+  <ul class="change-list">
+    <li>De <strong>5 smells</strong> intra-função para <strong>12 smells</strong> em três camadas — investigação da literatura mostrou que a maioria dos smells reconhecidos pode ser detectada via regras estáticas com F1 competitivo, e que ML é justificado para um subset específico.</li>
+    <li><strong>Long Method passou a ser detectado via ML</strong> (LoRA classifier sobre Qwen2.5-Coder-1.5B), com <strong>regras estáticas mantidas em paralelo apenas como ablação</strong> no paper. Justificativa: os dados de mineração que usaremos para treinar o LoRA de geração (Extract Method) servem simultaneamente para treinar o classifier — custo zero adicional de dados. F1 esperado em Python ~0.65-0.80 (contra ~0.84 das regras em Java cross-project; transferência cross-language perde algo).</li>
+    <li><strong>God Class, Feature Envy, Data Class</strong> entram com detecção ML — literatura recente (Beyazit 2026, Liu 2018/2023, Kovačević 2022) confirma gaps de +8 a +28pp.</li>
+    <li><strong>Stack ML unificado:</strong> Qwen2.5-Coder-1.5B é o único modelo base; <strong>11 adaptadores LoRA</strong> são swapados conforme a tarefa (refatoração ou classificação).</li>
+    <li><strong>Detecção 100% offline</strong> — sem APIs externas. Todo modelo roda local com pesos baixados.</li>
+    <li>Workarounds opcionais identificados para 3 smells antes "fora do escopo" (Type-4 clones, Shotgun Surgery, Divergent Change). <strong>Decisão pendente do trio</strong> — detalhamento de esforço por smell na §6.</li>
+    <li><strong>Trava de segurança via geração automática de testes</strong> — gap identificado pelo grupo: nem todo código que parece um smell deve ser refatorado (e.g., `if` aninhados em validações de segurança). Direção proposta detalhada em §4. <strong>Status: em desenvolvimento</strong>, sem solução final ainda.</li>
+  </ul>
+</div>
+
+<h2>2. Os 12 smells da ferramenta — métricas e justificativas</h2>
+
+<p>Cada decisão proposta foi tomada com base em literatura recente (cross-project, ground truth humano, pós-Di Nucci 2018) e na disponibilidade de código/algoritmo pronto. As tabelas abaixo mostram F1 da melhor evidência disponível, custo de implementação e justificativa.</p>
+
+<div class="legend-row">
+  <div><span class="verdict v-rules">Regras (evidência)</span> Comparação publicada favorece regras</div>
+  <div><span class="verdict v-rules-struct">Regras (estrutural)</span> Determinístico AST/CFG; ML não testado</div>
+  <div><span class="verdict v-ml-mod">ML modesto</span> Gap +5-14pp</div>
+  <div><span class="verdict v-ml">ML</span> Gap ≥+15pp</div>
+</div>
+
+<h3>Camada 1 — Regras estáticas core (4 smells)</h3>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Mecanismo</th>
+      <th class="num">F1 regras</th>
+      <th class="num">F1 ML</th>
+      <th>Verdicto</th>
+      <th>Justificativa + fonte</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Long Parameter List</td>
+      <td>AST parameter count</td>
+      <td class="f1">0.73</td>
+      <td class="f1">0.67</td>
+      <td><span class="verdict v-rules">Regras (evidência)</span></td>
+      <td>Regras <strong>vencem ML por 6pp</strong> em Beyazit 2026. AST count é trivial. <abbr title="Beyazit et al. 2026">B26</abbr></td>
+    </tr>
+    <tr>
+      <td class="smell-name">Magic Numbers / Strings</td>
+      <td>ruff PLR2004 + extensão AST</td>
+      <td class="f1">~0.90</td>
+      <td class="f1">—</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td>Detecção AST de literais é determinística. ML nunca foi testado especificamente para este smell. <abbr title="Palomba et al. 2017">P17</abbr></td>
+    </tr>
+    <tr>
+      <td class="smell-name">Deeply Nested Conditional</td>
+      <td>pylint R1702 (threshold 3)</td>
+      <td class="f1">~0.90</td>
+      <td class="f1">—</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td>Contagem de profundidade AST é exata. ML não foi testado especificamente. <abbr title="McCabe 1976">M76</abbr> <abbr title="Shepperd 1988">S88</abbr></td>
+    </tr>
+    <tr>
+      <td class="smell-name">Dead Code intra-função</td>
+      <td>pylint W0101+W0612+W0613 + vulture</td>
+      <td class="f1">~0.80</td>
+      <td class="f1">—</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td>Análise CFG/DFA é provavelmente correta no escopo intra-função. Cobre ~70% dos casos sintáticos. <abbr title="CFG literature, doc Pylint/Vulture">CFG</abbr></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Camada 2 — Regras estáticas adicionais (4 smells)</h3>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Mecanismo</th>
+      <th class="num">F1 regras</th>
+      <th class="num">F1 ML</th>
+      <th>Verdicto</th>
+      <th>Justificativa + fonte</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Refused Bequest</td>
+      <td>MRO traversal + override count (~100 linhas)</td>
+      <td class="f1">0.45</td>
+      <td class="f1">0.38</td>
+      <td><span class="verdict v-rules">Regras (evidência)</span></td>
+      <td>Regras <strong>vencem ML por 7pp</strong>. ML em smells subjetivos com kappa baixo não converge. <abbr title="Beyazit et al. 2026">B26</abbr> <abbr title="Chen et al. 2020, DSA">C20</abbr></td>
+    </tr>
+    <tr>
+      <td class="smell-name">Duplicate Code Tipo-1/2/3</td>
+      <td>NiCad (Python support) ou AST hash</td>
+      <td class="f1">~0.95</td>
+      <td class="f1">~0.95</td>
+      <td><span class="verdict v-rules">Regras (evidência)</span></td>
+      <td>Empate; regras textuais/sintáticas saturadas. Nada a ganhar com ML. (clone literature)</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Long Message Chain</td>
+      <td>Algoritmo PyExamine portado (~100 linhas)</td>
+      <td class="f1">n/d</td>
+      <td class="f1">—</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td>Contagem de chamadas encadeadas é AST-determinística. <abbr title="PyExamine, KarthikShivasankar/python_smells_detector">PyEx</abbr></td>
+    </tr>
+    <tr>
+      <td class="smell-name">Middle Man</td>
+      <td>Algoritmo PyExamine portado, intra-arquivo (~150 linhas)</td>
+      <td class="f1">n/d</td>
+      <td class="f1">—</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td>Razão de delegação por método é AST-determinística. <abbr title="PyExamine">PyEx</abbr></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Camada 3 — Detecção ML (4 smells)</h3>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Mecanismo</th>
+      <th class="num">F1 regras</th>
+      <th class="num">F1 ML</th>
+      <th>Verdicto</th>
+      <th>Justificativa + fonte</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Long Method</td>
+      <td>Qwen2.5-Coder-1.5B + LoRA classifier (regras computadas em paralelo para ablação)</td>
+      <td class="f1">0.84</td>
+      <td class="f1">0.87</td>
+      <td><span class="verdict v-ml-mod">ML modesto</span></td>
+      <td>Gap +3pp em Java cross-project. <strong>Dados de treino vêm da mesma mineração que faremos para o LoRA de Extract Method</strong> — custo zero adicional. Regras mantidas para ablação rules vs. ML no paper. <abbr title="Beyazit et al. 2026">B26</abbr> <abbr title="Kovačević et al. 2022">K22</abbr></td>
+    </tr>
+    <tr>
+      <td class="smell-name">Feature Envy</td>
+      <td>Qwen2.5-Coder-1.5B + LoRA classifier</td>
+      <td class="f1">0.63</td>
+      <td class="f1">0.71</td>
+      <td><span class="verdict v-ml-mod">ML modesto</span></td>
+      <td>Gap +8pp consistente em múltiplos estudos. Custo: LoRA classifier sobre o mesmo modelo base. <abbr title="Beyazit 2026">B26</abbr> <abbr title="Liu et al. 2018, ASE">L18</abbr> <abbr title="Liu et al. 2023, ESEC/FSE">L23</abbr> <abbr title="Škipina et al. 2023, ESWA">S23</abbr></td>
+    </tr>
+    <tr>
+      <td class="smell-name">God Class / Blob</td>
+      <td>Qwen2.5-Coder-1.5B + LoRA classifier</td>
+      <td class="f1">0.65</td>
+      <td class="f1">0.88-0.93</td>
+      <td><span class="verdict v-ml">ML</span></td>
+      <td>Gap <strong>+23-28pp</strong> — o maior do catálogo. Cohesão semântica não é capturada por contagens. <abbr title="Beyazit 2026">B26</abbr> <abbr title="Kovačević et al. 2022, ESWA">K22</abbr></td>
+    </tr>
+    <tr>
+      <td class="smell-name">Data Class</td>
+      <td>Qwen2.5-Coder-1.5B + LoRA classifier</td>
+      <td class="f1">0.78</td>
+      <td class="f1">0.89</td>
+      <td><span class="verdict v-ml">ML</span></td>
+      <td>Gap +11pp consistente. Detectar "ausência de comportamento dado presença de dados" é semântico. <abbr title="Beyazit 2026">B26</abbr> <abbr title="Škipina et al. 2023">S23</abbr></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>3. Arquitetura unificada</h2>
+
+<div class="diagram">arquivo.py
+  ↓ AST decomposição (ast stdlib, determinístico)
+  │
+  ├── funções/métodos
+  │     ├── 4 detectores estáticos camada 1 (Long Param, Magic, Deep Nest, Dead Code)
+  │     ├── Long Method via Qwen + LoRA classifier (camada 3)
+  │     │   └── regras Lizard+Pylint computadas em paralelo (ablação no paper)
+  │     │
+  │     └── (sobre métodos com contexto da classe owner)
+  │           Feature Envy via Qwen + LoRA classifier (camada 3)
+  │
+  ├── classes (com lista de métodos e atributos)
+  │     ├── 4 detectores estáticos camada 2 (Refused Bequest, Duplicate, Long Chain, Middle Man)
+  │     └── Qwen2.5-Coder-1.5B + LoRA classifier (God Class, Data Class)
+  │           └── multilabel sigmoid sobre embedding da classe
+  │
+  └── (opcional, se workarounds aprovados)
+        ├── pares de classes → UniXcoder embedding similarity (Type-4 clones)
+        └── repo + histórico → PyDriller co-change (Shotgun, Divergent)</div>
+
+<p><strong>Stack ML unificado — 11 LoRAs sobre o mesmo modelo base:</strong></p>
+
+<ul>
+  <li><strong>7 LoRAs de refatoração</strong> (R1-R7): Long Method (Extract Method), Long Param List (Introduce Parameter Object), Magic Numbers (Replace with Named Constant), Deep Nesting (Guard Clauses), Dead Code (Remove), Feature Envy (Move Method), God Class (Extract Class)</li>
+  <li><strong>4 LoRAs de classificação</strong> (C1-C4): Long Method, Feature Envy, God Class, Data Class — todos em produção</li>
+</ul>
+
+<p>Cada LoRA pesa 5-50 MB, treina em 1-3h em GPU gratuita (Colab/Kaggle), e é swapado em runtime sem recarregar o modelo base.</p>
+
+<p><strong>Reuso pleno do dataset minerado:</strong></p>
+
+<ul>
+  <li>PyDriller extrai pares <code>(antes_smelly, depois_clean)</code> de commits de refatoração</li>
+  <li>Para LoRAs de refatoração: par completo é input/output</li>
+  <li>Para LoRAs de classificação: a função/classe "antes" + label do tipo do commit</li>
+  <li><strong>Mesma mineração serve aos dois conjuntos de LoRAs</strong> — sem custo duplicado de aquisição de dados. Esse é precisamente o motivo de Long Method ir para ML: já vamos minerar pares de Extract Method para o LoRA R1, então temos dados grátis para o LoRA classifier C1.</li>
+</ul>
+
+<h2>4. Trava de segurança: distinguir smell real de smell aparente</h2>
+
+<p>O grupo identificou um gap importante: <strong>nem todo código que parece um smell é realmente um problema</strong>. Refatorar agressivamente nesses casos pode quebrar comportamento crítico. Casos comuns:</p>
+
+<ul>
+  <li><code>if</code> aninhados profundos em <strong>funções de validação de segurança</strong>, onde cada camada confirma uma pré-condição crítica antes da próxima (autorização → autenticação → input sanitization → execução)</li>
+  <li>"Long Method" que é sequência linear de transformações <strong>sem alternativas razoáveis</strong> (parsers, pipelines de ETL, máquinas de estado)</li>
+  <li>"Magic Numbers" que são <strong>códigos de protocolo bem conhecidos</strong> (HTTP <code>200</code>/<code>404</code>, bytes hex, RFC constants) cuja substituição por nome adicionaria ruído sem clareza</li>
+  <li>"Dead Code" aparente em <strong>branches dependentes de input runtime</strong> não capturado por análise estática (e.g., <code>if config.experimental_feature:</code>)</li>
+  <li>Funções com muitos parâmetros que correspondem a <strong>contratos de API estáveis</strong> cuja mudança quebraria callers externos</li>
+</ul>
+
+<p>A ferramenta precisa diferenciar dois cenários:</p>
+<ul>
+  <li>Smells <strong>reais</strong> que devem ser refatorados → gerar diff, propor mudança ao usuário</li>
+  <li>Padrões que <strong>parecem smells mas devem ser preservados</strong> → não propor refatoração, ou propor com aviso explícito</li>
+</ul>
+
+<h3>Direção proposta (em desenvolvimento)</h3>
+
+<p>Aproveitando que nosso escopo é <strong>function-level</strong>, a ideia é:</p>
+
+<ol>
+  <li>Para cada função-alvo identificada como candidata a refatoração, <strong>gerar automaticamente um conjunto de testes</strong> que captura o comportamento da versão original</li>
+  <li>Aplicar a refatoração proposta pelo LoRA correspondente, gerando a versão modificada</li>
+  <li>Executar os testes auto-gerados em <strong>ambas as versões</strong> (original e refatorada)</li>
+  <li>Se os testes na versão refatorada falharem ou divergirem do comportamento original, <strong>rejeitar a refatoração automaticamente</strong> e marcar o smell como "provável falso positivo — comportamento crítico não preservável"</li>
+  <li>Se os testes passarem em ambas as versões, apresentar o diff ao usuário para aprovação manual (fluxo normal)</li>
+</ol>
+
+<p>Essa trava serve a dois propósitos simultâneos:</p>
+<ul>
+  <li><strong>Garantia de preservação de comportamento</strong> (test-and-roll-back automático antes de mostrar qualquer diff)</li>
+  <li><strong>Sinal pedagógico</strong> ao usuário: o output da CLI inclui uma seção "refatorações rejeitadas pela trava" indicando candidatos que parecem smells mas que provavelmente são intencionais</li>
+</ul>
+
+<h3>Status: gap identificado, solução final pendente</h3>
+
+<p>Decisões abertas que o trio precisa enfrentar quando essa camada for implementada:</p>
+
+<ul>
+  <li><strong>Qual mecanismo de geração automática de testes?</strong> Candidatos: <a href="https://github.com/se2p/pynguin">Pynguin</a> (search-based test generation para Python), <a href="https://github.com/HypothesisWorks/hypothesis">Hypothesis</a> (property-based testing), geração via LLM (usando o próprio Qwen-Coder), ou combinação dos três</li>
+  <li><strong>Cobertura mínima aceitável</strong> para considerar a trava confiável (80% de branches? 95%? cobertura mutacional?)</li>
+  <li><strong>Tratamento de funções com I/O ou estado externo</strong> (banco, rede, filesystem) — auto-mock? skip? marcar como "trava não aplicável"?</li>
+  <li><strong>Custo computacional adicional</strong> — geração + execução pode dobrar o tempo de inferência da CLI; quanto é aceitável?</li>
+  <li><strong>Apresentação ao usuário</strong> — como diferenciar visualmente "smell rejeitado pela trava" de "smell não detectado" no output em árvore?</li>
+</ul>
+
+<h3>Por que essa camada pode virar outro projeto inteiro</h3>
+
+<p>Reconhecemos honestamente que a trava de segurança tem complexidade comparável ao escopo principal do TP. <strong>Dois desafios independentes</strong>, qualquer um deles capaz de absorver semanas de trabalho:</p>
+
+<p><strong>Desafio 1 — Gerar testes que verificam comportamento, não só exercitem código.</strong></p>
+<ul>
+  <li>Geração automática de testes Python é área de pesquisa ativa. <strong>Pynguin foi tese de doutorado</strong>; LLM-based test generation (TestPilot, CodaMosa, papers recentes do MIT 2024-25) ainda é open research.</li>
+  <li>Se quisermos qualidade que justifique a trava, provavelmente precisamos de <strong>outro LoRA dedicado à geração de testes</strong> — outro treinamento, outro dataset minerado (pares <code>(função, suíte de testes válida)</code>), outras métricas de avaliação (mutation score? branch coverage? equivalência funcional?). Isso por si só é projeto de complexidade similar ao nosso.</li>
+  <li><strong>Bônus arquitetural:</strong> se conseguirmos boa geração de testes, o output pode ser oferecido ao usuário como feature paralela — "bateria de testes auto-gerados para seu código legado". Tem valor real para devs que herdam projetos sem cobertura, mas reforça que estamos falando de mini-projeto à parte com escopo próprio.</li>
+</ul>
+
+<p><strong>Desafio 2 — Onde estão os dados de "parece smell mas não é"?</strong></p>
+<ul>
+  <li>Alternativa ao Desafio 1: em vez de filtrar comportamentalmente via testes, treinar o classifier diretamente em exemplos negativos (padrões que parecem smell mas devem ser preservados — validações de segurança, contratos de API, códigos de protocolo).</li>
+  <li>O problema: <strong>esses dados praticamente não existem em forma estruturada</strong>. Fontes potenciais — todas problemáticas:
+    <ul>
+      <li>PR reviews com "leave as is": existe, mas dispersa, exige mineração + classificação de comentários em texto livre</li>
+      <li><code># pylint: disable</code> com justificativa: raramente é justificado, e a justificativa (quando existe) é texto não-rotulado</li>
+      <li>Marcações "won't fix" do SonarQube: existem em projetos com SonarQube ativo, mas a base privada da maioria dos repos não expõe esses dados publicamente</li>
+      <li>MLCQ dataset: tem labels "none/minor/major/critical" — label "none" pode significar "não-smelly" OU "smelly mas aceitável no contexto", sem distinguir os dois</li>
+    </ul>
+  </li>
+  <li><strong>Catalogar e rotular sistematicamente esses dados é um projeto de pesquisa empírica em si</strong> — do tipo que dá um paper inteiro só com a metodologia de coleta.</li>
+</ul>
+
+<p><strong>Implicação prática para nosso TP:</strong></p>
+<ul>
+  <li>Muito provavelmente a trava completa fica como <strong>trabalho futuro documentado</strong>, com prova-de-conceito limitada se o tempo permitir.</li>
+  <li>O paper reconhecerá honestamente que <strong>sem essa camada</strong>, refatorações sugeridas podem propor mudanças que quebram comportamento legítimo (mitigado pela aprovação humana de cada diff, mas não eliminado).</li>
+  <li>Se o trio decidir abraçar parte do Desafio 1 dentro do TP, precisamos <strong>cortar escopo em outro lugar</strong> (provavelmente os workarounds da camada 4 saem) — não dá para fazer tudo em 11 semanas.</li>
+</ul>
+
+<div class="callout pending">
+  <p style="margin: 0;"><strong>Cronograma:</strong> esta camada será implementada <strong>após</strong> a pipeline base de detecção+refatoração estar estável (após semana 8). Se o tempo ficar curto antes da entrega, vira <strong>trabalho futuro documentado no paper</strong> como ameaça à validade reconhecida. Reconhecer o gap honestamente vale mais que omitir.</p>
+</div>
+
+<h2>5. Propostas resolvidas — pendentes aprovação de Bernardo e Filipe</h2>
+
+<div class="callout proposal">
+  <p style="margin: 0 0 8px;"><strong>Pontos alinhados com Gustavo, aguardando "vai" do trio:</strong></p>
+  <ul style="margin: 0; padding-left: 20px;">
+    <li>Linguagem-alvo: <strong>Python</strong> (não multi-linguagem)</li>
+    <li>Operação: <strong>100% offline, sem APIs externas</strong></li>
+    <li><strong>7 LoRAs de refatoração</strong> (5 originais intra-função + Move Method para Feature Envy + Extract Class para God Class)</li>
+    <li><strong>Detecção ML para 4 smells</strong>: Long Method, Feature Envy, God Class, Data Class — todos via Qwen2.5-Coder-1.5B + LoRA classifier head</li>
+    <li><strong>Long Method via ML</strong> com regras computadas em paralelo apenas para tabela de ablação no paper (justificativa: dados grátis pela mineração que já faremos para o LoRA R1)</li>
+    <li>Modelo base unificado para TODOS os 11 LoRAs</li>
+  </ul>
+  <p style="margin: 12px 0 0; font-size: 0.92rem;">Estes itens foram tomados com base na evidência da literatura e nas restrições técnicas do projeto. <strong>Nenhum está cravado em pedra</strong> — se Bernardo ou Filipe discordarem de qualquer um, podemos rediscutir antes de iniciar a implementação.</p>
+</div>
+
+<h2>6. Pontos abertos para o trio decidir junto</h2>
+
+<h3>6.1 Workarounds opcionais (camada 4)</h3>
+
+<p>Três smells antes "fora do escopo" tiveram workarounds confirmados como tecnicamente viáveis. Cada um vem com um custo concreto que o trio precisa avaliar contra a margem de tempo e ambição do paper.</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Mecanismo</th>
+      <th>Trabalho adicional concreto</th>
+      <th class="num">Esforço</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Type-4 semantic clones</td>
+      <td>UniXcoder zero-shot + GPTCloneBench Python pairs</td>
+      <td>
+        <ul class="work-detail">
+          <li>Download GPTCloneBench (~3.7k pares Python já rotulados, CC BY-NC-ND)</li>
+          <li>Integrar UniXcoder via HuggingFace (~500 MB modelo extra a carregar)</li>
+          <li>Implementar etapa de comparação par-a-par de funções (intra-arquivo + opcionalmente inter-arquivo)</li>
+          <li>Calibrar threshold de similaridade cosseno em held-out</li>
+          <li>Adicionar grupos de clone à árvore de output da CLI</li>
+          <li>Avaliação execution-based não se aplica diretamente; usar concordância humana sobre subset rotulado</li>
+        </ul>
+      </td>
+      <td class="f1">~1.5 sem</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Shotgun Surgery</td>
+      <td>PyDriller + co-change heuristic sobre histórico</td>
+      <td>
+        <ul class="work-detail">
+          <li>Implementar extração de histórico de commits via PyDriller (já está no stack)</li>
+          <li>Calcular frequência de co-mudança por par de arquivos/classes</li>
+          <li>Definir e calibrar threshold δ para "shotgun" (uma mudança lógica → muitos arquivos modificados)</li>
+          <li>Adicionar flags <code>--repo-path</code> e <code>--repo-url</code> à CLI (mudança no input model)</li>
+          <li>Para modo URL: integrar <code>mcp__github__list_commits</code> como fallback (rate-limited a 5k req/h, adequado só para repos rasos)</li>
+          <li>Validar em 2-3 projetos open-source Python</li>
+          <li>Documentar limitação: requer histórico ≥30 commits para sinal confiável</li>
+        </ul>
+      </td>
+      <td class="f1">~2 sem</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Divergent Change</td>
+      <td>PyDriller + change-coupling sobre mesmo histórico do Shotgun</td>
+      <td>
+        <ul class="work-detail">
+          <li><strong>Reusa toda a infraestrutura de mineração do Shotgun Surgery</strong> (se Shotgun já foi feito, custo cai drasticamente)</li>
+          <li>Implementar agregação per-classe diferente: contar "razões distintas de mudança" via classificação de mensagens de commit</li>
+          <li>Definir threshold para "divergent" (muitas razões independentes mexendo na mesma classe)</li>
+          <li>Adicionar à árvore de output: classes flagueadas com lista de razões</li>
+          <li>Sem custo extra de validação de input — se Shotgun foi feito, flag <code>--repo-path</code> já existe</li>
+        </ul>
+      </td>
+      <td class="f1">~1 sem (dependendo de Shotgun)</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout pending">
+  <p style="margin: 0 0 10px;"><strong>O que o trio precisa votar (4 opções):</strong></p>
+  <ol style="margin: 0; padding-left: 20px;">
+    <li><strong>Apenas Type-4 clones</strong> (+1 smell, ~1.5 sem, sem mudança no input). Diferenciador forte para o paper — clone semântico em Python é raro na literatura.</li>
+    <li><strong>Apenas Shotgun + Divergent</strong> (+2 smells, ~3 sem, requer flag <code>--repo-path</code>). Compartilham mineração; "dois pelo preço de quase um". Mas mudam o input model da CLI.</li>
+    <li><strong>Os três (Type-4 + Shotgun + Divergent)</strong> (+3 smells, ~4.5 sem). Cobertura mais ampla, mas inflaciona scope.</li>
+    <li><strong>Nenhum</strong> (defer to future work). Foco máximo na qualidade dos 12 base e no relatório paper-style.</li>
+  </ol>
+</div>
+
+<h3>6.2 Outros pontos para alinhar com o trio</h3>
+
+<ul>
+  <li><strong>Modelo base alternativo</strong> — Qwen2.5-Coder-1.5B (proposto) ou CodeT5-base como fallback se hardware do trio for limitado. Decisão depende do que cada um tem disponível para rodar treinos no Colab.</li>
+  <li><strong>Divisão de trilhas</strong> — quem cuida de qual frente (Trilha A: mineração + estáticos; Trilha B: LoRAs; Trilha C: CLI + avaliação + paper)?</li>
+  <li><strong>Cronograma</strong> — confirmar disponibilidade dos três para ~10-12 semanas de trabalho concorrente.</li>
+  <li><strong>Mira em publicação pós-TP</strong> — submeter a MSR Student Track / ICSE-SRC / ESEM Short Paper depois do TP? Decisão afeta o nível de rigor experimental e a forma do relatório (paper-style desde o início vs. depois adaptado).</li>
+</ul>
+
+<h2>7. Cronograma estimado (11 semanas, sem workarounds)</h2>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th class="num">Semana</th>
+      <th>Marco</th>
+      <th>Quem</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="num">1</td>
+      <td>Setup ambiente, escolha de modelo base, estrutura de pastas, alinhamento sobre os 12 smells</td>
+      <td>Todos</td>
+    </tr>
+    <tr>
+      <td class="num">2-3</td>
+      <td>Mineração PyDriller (~30 repos Python) + decomposição AST + 4 detectores estáticos camada 1</td>
+      <td>Trilha A</td>
+    </tr>
+    <tr>
+      <td class="num">3-4</td>
+      <td>4 detectores estáticos camada 2 (Refused Bequest, Duplicate, Long Chain, Middle Man) + regras Long Method (ablação)</td>
+      <td>Trilha A</td>
+    </tr>
+    <tr>
+      <td class="num">4-7</td>
+      <td>Treinamento dos 7 LoRAs de refatoração (R1-R7) em pares minerados</td>
+      <td>Trilha B</td>
+    </tr>
+    <tr>
+      <td class="num">5-7</td>
+      <td>Treinamento dos 4 LoRAs classificadores (C1-C4) em rótulos derivados da mesma mineração</td>
+      <td>Trilha B</td>
+    </tr>
+    <tr>
+      <td class="num">7-8</td>
+      <td>CLI integrada (Typer + Rich), pipeline end-to-end, decomposição AST + roteamento</td>
+      <td>Trilha C</td>
+    </tr>
+    <tr>
+      <td class="num">8-9</td>
+      <td>Avaliação: held-out manual (~80 fixtures), execution-based testing, baselines B0/B1/B2/B3, micro-survey humano, ablação Long Method rules vs. ML</td>
+      <td>Trilha C + todos</td>
+    </tr>
+    <tr>
+      <td class="num">10</td>
+      <td>Relatório formato paper (4-6 páginas), replication package (Docker, Make)</td>
+      <td>Todos</td>
+    </tr>
+    <tr>
+      <td class="num">11</td>
+      <td>Margem para imprevistos + ensaio de apresentação</td>
+      <td>Todos</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p style="font-size: 0.92rem; color: var(--muted);">
+  Se o trio decidir incluir workarounds da camada 4: somar 1.5-4.5 semanas conforme a opção escolhida. Se incluir a trava de segurança (§4) como entrega do TP e não trabalho futuro: somar mais ~1.5-2 semanas (geração de testes + integração no pipeline). Considerar uso da semana de margem (11) ou estender o cronograma. <strong>Plano de degradação:</strong> se ao fim da semana 5 os LoRAs de refatoração não convergirem, degrada-se para "classificação ML + sugestão textual" (sem geração automática). Custo da degradação: zero retrabalho nas Trilhas A e C; perde-se apenas os LoRAs de geração da Trilha B.
+</p>
+
+<h2>8. Caveats honestos (a documentar no paper)</h2>
+
+<ul>
+  <li><strong>Quase toda evidência ML é Java.</strong> Para Python, transferência perde ~5-10pp em F1. Documentamos como limitação.</li>
+  <li><strong>Smells "estruturais" não têm F1 contra ground truth humano em Python.</strong> Adotamos via determinismo AST/CFG; reconhecemos a ausência de teste empírico direto.</li>
+  <li><strong>Cohen's kappa entre anotadores é 0.4-0.6</strong> para smells subjetivos — teto que nenhum método cruza.</li>
+  <li><strong>Cross-project F1 é ~20-30pp menor</strong> que within-project. Os números acima são cross-project (mais honestos).</li>
+  <li><strong>Refatoração inter-classe (Move Method, Extract Class)</strong> é categoricamente mais difícil que intra-função. Risco de qualidade subjetiva inferior aceito como trade-off pela cobertura ampliada.</li>
+  <li><strong>Long Method em Python via ML é uma escolha pragmática</strong>, não comprovada empiricamente como superior a regras (cuja diferença é só 3pp em Java cross-project). A justificativa principal é o reuso de dados — a literatura per se não recomenda preferencialmente ML para esse smell.</li>
+  <li><strong>Sem trava de segurança</strong> (caso ela não seja implementada a tempo), refatorações sugeridas podem propor mudanças que quebram comportamento legítimo (validações de segurança, contratos de API, magic numbers que são códigos de protocolo). Isso é uma <strong>ameaça à validade reconhecida</strong> da ferramenta, mitigada pela aprovação humana de cada diff mas não eliminada (usuário pode aprovar sem perceber a quebra). A §4 detalha a direção proposta para fechar esse gap.</li>
+</ul>
+
+<h2>9. Confirmação do trio</h2>
+
+<p>Antes de iniciar a implementação, precisamos do "vai" explícito de cada um sobre:</p>
+
+<ul class="checks">
+  <li><strong>Concordância com as 12 fatias da ferramenta</strong> e os mecanismos justificados acima (4 estáticas core + 4 estáticas adicionais + 4 ML)</li>
+  <li><strong>Concordância com a arquitetura unificada</strong> — Qwen2.5-Coder-1.5B + 11 LoRAs swapados conforme tarefa</li>
+  <li><strong>Concordância com Long Method via ML</strong> (com regras como ablação) — justificativa: dados grátis pela mineração que já faremos para o LoRA R1</li>
+  <li><strong>Concordância com o stack offline</strong> — sem APIs externas, modelo base baixado, inferência local</li>
+  <li><strong>Voto sobre os workarounds da camada 4</strong> — Type-4? Shotgun+Divergent? Os três? Nenhum?</li>
+  <li><strong>Concordância com a trava de segurança via testes auto-gerados</strong> (descrita em §4) — incluir como objetivo do TP, ou marcar como trabalho futuro caso o tempo aperte?</li>
+  <li><strong>Disponibilidade para o cronograma de 11 semanas</strong> com divisão em trilhas A/B/C</li>
+  <li><strong>Compromisso com o framing acadêmico</strong> — formato de relatório paper-style, replication package, RQs explícitas, mira em submissão a workshop pós-TP</li>
+</ul>
+
+<div class="callout">
+  <p style="margin: 0;"><strong>Bernardo e Filipe:</strong> esta proposta é o resultado de pesquisa intensiva sobre o que a literatura recente realmente justifica, mais o desenho técnico que melhor reusa nossa infraestrutura de mineração e treinamento. Não é uma escolha pessoal cravada — é o que a evidência aponta como caminho de melhor custo-benefício para um TP que ambiciona qualidade publicável. Se discordarem de qualquer ponto, o momento de discutir é agora, antes de qualquer linha de código. Se concordarem nos itens acima, podemos abrir as trilhas e começar a executar nessa semana.</p>
+</div>
+
+<footer>
+  Documento gerado a partir do plano consolidado em <code>~/.claude/plans/timo-muito-bom-agora-kind-frost.md</code> e do catálogo de evidências em <code>CATALOGO_SMELLS.html</code>. Revisão técnica: maio 2026. <strong>Pendente aprovação dos três membros antes do início da implementação</strong> — nenhum dos itens listados como "propostos" está cravado em pedra.
+</footer>
+
+</div>
+</body>
+</html>

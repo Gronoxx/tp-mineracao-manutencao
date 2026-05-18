@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogo de Code Smells — ML vs. Regras (consenso 2026)</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #fafaf7;
+    --muted: #6b6b6b;
+    --rule: #d8d4cc;
+    --accent: #1f3a5f;
+    --soft: #f0ece3;
+    --softer: #f7f4ec;
+
+    --ml-win: #2d6a4f;
+    --ml-win-bg: #d5ead9;
+    --ml-mod: #74a892;
+    --ml-mod-bg: #e3f0e9;
+    --rules-win: #1f3a5f;
+    --rules-win-bg: #d8e0ec;
+    --indet: #8a8378;
+    --indet-bg: #ece8df;
+
+    --status-e: #2d6a4f;
+    --status-e-bg: #d5ead9;
+    --status-m: #4a3878;
+    --status-m-bg: #e1d9f0;
+    --status-r: #8a5a1f;
+    --status-r-bg: #f0e2cf;
+    --status-out: #8a8378;
+    --status-out-bg: #ece8df;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 22px;
+    margin-bottom: 44px;
+  }
+  header .kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-size: 1.75rem;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  header .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    margin: 0;
+  }
+  h2 {
+    font-size: 1.18rem;
+    margin: 52px 0 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 600;
+  }
+  h2:first-of-type { margin-top: 0; }
+  h3 {
+    font-size: 1.02rem;
+    margin: 28px 0 10px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  p { margin: 0 0 12px; }
+  ul, ol { padding-left: 22px; margin: 8px 0 14px; }
+  li { margin-bottom: 5px; }
+  code, abbr {
+    font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.87em;
+  }
+  abbr {
+    border-bottom: 1px dotted var(--accent);
+    cursor: help;
+    text-decoration: none;
+    background: var(--soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 3px;
+  }
+  abbr:last-child { margin-right: 0; }
+
+  .legend-block {
+    background: var(--softer);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin: 16px 0 8px;
+  }
+  .legend-block h3 {
+    margin-top: 0;
+    color: var(--ink);
+  }
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-bottom: 8px;
+  }
+  .legend-row > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.92rem;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .badge.estatica { background: var(--status-e-bg); color: var(--status-e); }
+  .badge.ml { background: var(--status-m-bg); color: var(--status-m); }
+  .badge.reavaliacao { background: var(--status-r-bg); color: var(--status-r); }
+  .badge.fora { background: var(--status-out-bg); color: var(--status-out); }
+
+  .verdict {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .v-ml { background: var(--ml-win-bg); color: var(--ml-win); }
+  .v-ml-mod { background: var(--ml-mod-bg); color: var(--ml-win); }
+  .v-rules { background: var(--rules-win-bg); color: var(--rules-win); }
+  .v-rules-struct {
+    background: #eef2f7;
+    color: #3d5273;
+    border: 1px dashed #98a8c0;
+    padding: 1px 7px;
+  }
+  .v-indet { background: var(--indet-bg); color: var(--indet); }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: 14px 0 22px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    background: var(--soft);
+    font-weight: 600;
+    border-bottom: 1.5px solid var(--ink);
+    font-size: 0.83rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    position: sticky;
+    top: 0;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.smell-name {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  td.numeric {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.84rem;
+    white-space: nowrap;
+  }
+  td.gap {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.84rem;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  td.gap.positive { color: var(--ml-win); }
+  td.gap.negative { color: var(--rules-win); }
+  td.gap.neutral { color: var(--muted); }
+  td.sources { font-size: 0.82rem; }
+
+  .callout {
+    background: var(--soft);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    margin: 22px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.95rem;
+  }
+  .callout strong { color: var(--accent); }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin: 16px 0 24px;
+  }
+  .stat-card {
+    background: var(--softer);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .stat-card .label {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .stat-card .number {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-card .desc {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .source-table {
+    font-size: 0.85rem;
+  }
+  .source-table td:first-child {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+    width: 60px;
+  }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 768px) {
+    .container { padding: 40px 18px 64px; }
+    table { font-size: 0.82rem; }
+    th, td { padding: 7px 8px; }
+  }
+
+  @media print {
+    body { font-size: 11pt; }
+    .table-wrap { overflow-x: visible; border: none; }
+    table { font-size: 9pt; page-break-inside: avoid; }
+    h2 { page-break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="kicker">TP Engenharia de Software II — Documento de referência</div>
+  <h1>Catálogo de Code Smells: ML vs. Regras Estáticas (consenso 2026)</h1>
+  <p class="subtitle">Compilação da literatura sobre detecção de smells, com estado da evidência ML versus regras para cada smell, mapeada às decisões arquiteturais do projeto.</p>
+</header>
+
+<h2>1. Legenda</h2>
+
+<div class="legend-block">
+  <h3>Status no projeto</h3>
+  <div class="legend-row">
+    <div><span class="badge estatica">✓ E</span> Detecção estática no projeto</div>
+    <div><span class="badge ml">✓ M</span> Detecção ML no projeto</div>
+    <div><span class="badge reavaliacao">⊕</span> Em reavaliação (candidato a mover para ML)</div>
+    <div><span class="badge fora">—</span> Fora do escopo</div>
+  </div>
+
+  <h3 style="margin-top: 18px;">Veredicto da literatura</h3>
+  <div class="legend-row">
+    <div><span class="verdict v-ml">ML</span> Vantagem ML clara (≥+15pp em F1)</div>
+    <div><span class="verdict v-ml-mod">ML modesto</span> Vantagem ML pequena (+5 a +14pp)</div>
+    <div><span class="verdict v-rules">Regras (evidência)</span> Comparação empírica favorece regras</div>
+    <div><span class="verdict v-rules-struct">Regras (estrutural)</span> Problema determinístico por construção; ML não testado</div>
+    <div><span class="verdict v-indet">Indeterminado</span> Sem comparativo nem base teórica</div>
+  </div>
+  <p style="margin: 10px 0 0; font-size: 0.85rem; color: var(--muted);">
+    A distinção entre <strong>Regras (evidência)</strong> e <strong>Regras (estrutural)</strong> é importante: a primeira tem teste empírico publicado (alguém mediu os dois e regras venceram); a segunda tem só raciocínio teórico (a regra resolve o problema por construção via AST/CFG, ML não foi formalmente testado mas dificilmente adicionaria valor).
+  </p>
+
+  <p style="margin: 14px 0 0; font-size: 0.88rem; color: var(--muted);">
+    Códigos de fonte (e.g., <abbr title="Fontana et al. 2016, EMSE">F16</abbr>, <abbr title="Di Nucci et al. 2018, SANER">DN18</abbr>) detalhados na §<a href="#fontes" style="color: var(--accent);">5</a>. Passe o mouse sobre cada código para a citação rápida.
+  </p>
+</div>
+
+<h2>2. Tabelas por categoria Fowler</h2>
+
+<h3>2.1 Bloaters</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Status</th>
+      <th>ML estudado?</th>
+      <th>F1 regras</th>
+      <th>F1 ML</th>
+      <th>Gap (pp)</th>
+      <th>Vencedor</th>
+      <th>Fontes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Long Method</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>sim</td>
+      <td class="numeric">0.84 (cross-project)</td>
+      <td class="numeric">0.87 (Llama-3.3)</td>
+      <td class="gap positive">+3 (revisado)</td>
+      <td><span class="verdict v-rules">Regras (evidência)</span></td>
+      <td class="sources">
+        <abbr title="Beyazit et al. 2026, arXiv (cross-project, F1 0.84 rules vs 0.87 ML)">B26</abbr>
+        <abbr title="Di Nucci et al. 2018, SANER (deflação Fontana)">DN18</abbr>
+        <abbr title="Kovačević et al. 2022, ESWA">K22</abbr>
+        <abbr title="Madeyski & Lewowski 2020, EASE (MLCQ)">ML20</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Long Parameter List</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>sim</td>
+      <td class="numeric">0.73 (Organic)</td>
+      <td class="numeric">0.67 (Llama-3.3)</td>
+      <td class="gap negative">−6</td>
+      <td><span class="verdict v-rules">Regras (evidência)</span></td>
+      <td class="sources">
+        <abbr title="Fontana et al. 2016, EMSE">F16</abbr>
+        <abbr title="Di Nucci et al. 2018, SANER">DN18</abbr>
+        <abbr title="Beyazit et al. 2026, arXiv">B26</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Magic Numbers / Strings</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>não</td>
+      <td class="numeric">~0.90 (AST + whitelist)</td>
+      <td class="numeric">—</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td class="sources">
+        <abbr title="Palomba et al. 2017, EMSE">P17</abbr>
+        <span style="color: var(--muted);">doc PMD/SonarQube</span>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Primitive Obsession</td>
+      <td><span class="badge fora">—</span></td>
+      <td>não</td>
+      <td class="numeric">sem dados</td>
+      <td class="numeric">sem dados</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources" style="color: var(--muted);">—</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Data Clumps</td>
+      <td><span class="badge fora">—</span></td>
+      <td>não</td>
+      <td class="numeric">sem dados</td>
+      <td class="numeric">sem dados</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources" style="color: var(--muted);">—</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>2.2 Object-Orientation Abusers</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Status</th>
+      <th>ML estudado?</th>
+      <th>F1 regras</th>
+      <th>F1 ML</th>
+      <th>Gap (pp)</th>
+      <th>Vencedor</th>
+      <th>Fontes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Switch Statement / Type Code</td>
+      <td><span class="badge fora">—</span></td>
+      <td>não</td>
+      <td class="numeric">sem dados</td>
+      <td class="numeric">sem dados</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources" style="color: var(--muted);">—</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Refused Bequest</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>sim</td>
+      <td class="numeric">0.45 (JSpIRIT)</td>
+      <td class="numeric">0.38 (best LLM)</td>
+      <td class="gap negative">−7 (revisado)</td>
+      <td><span class="verdict v-rules">Regras (evidência)</span></td>
+      <td class="sources">
+        <abbr title="Beyazit et al. 2026, arXiv">B26</abbr>
+        <abbr title="Chen et al. 2020, DSA">C20</abbr>
+        <abbr title="Di Nucci et al. 2018, SANER">DN18</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Alternative Classes w/ Diff. Interfaces</td>
+      <td><span class="badge fora">—</span></td>
+      <td>não</td>
+      <td class="numeric">sem dados</td>
+      <td class="numeric">sem dados</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources" style="color: var(--muted);">—</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>2.3 Change Preventers</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Status</th>
+      <th>ML estudado?</th>
+      <th>F1 regras</th>
+      <th>F1 ML</th>
+      <th>Gap (pp)</th>
+      <th>Vencedor</th>
+      <th>Fontes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Divergent Change</td>
+      <td><span class="badge fora">—</span></td>
+      <td>sim (history)</td>
+      <td class="numeric">~0.50 (estático)</td>
+      <td class="numeric">0.64–0.92 (HIST)</td>
+      <td class="gap positive">+14 a +42</td>
+      <td><span class="verdict v-ml">ML c/ histórico</span></td>
+      <td class="sources">
+        <abbr title="Palomba et al. 2015, IEEE TSE (HIST)">P15</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Shotgun Surgery</td>
+      <td><span class="badge fora">—</span></td>
+      <td>sim (history)</td>
+      <td class="numeric">~0.40–0.50</td>
+      <td class="numeric">0.64–1.00 (HIST)</td>
+      <td class="gap positive">+14 a +50</td>
+      <td><span class="verdict v-ml">ML c/ histórico</span></td>
+      <td class="sources">
+        <abbr title="Palomba et al. 2015, IEEE TSE (HIST)">P15</abbr>
+        <abbr title="Beyazit et al. 2026, arXiv">B26</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Parallel Inheritance Hierarchies</td>
+      <td><span class="badge fora">—</span></td>
+      <td>mínimo</td>
+      <td class="numeric">sem dados</td>
+      <td class="numeric">sem dados</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources" style="color: var(--muted);">—</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>2.4 Dispensables</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Status</th>
+      <th>ML estudado?</th>
+      <th>F1 regras</th>
+      <th>F1 ML</th>
+      <th>Gap (pp)</th>
+      <th>Vencedor</th>
+      <th>Fontes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Comments smell</td>
+      <td><span class="badge fora">—</span></td>
+      <td>não</td>
+      <td class="numeric">parcial (TODO/FIXME)</td>
+      <td class="numeric">sem dados</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources" style="color: var(--muted);">—</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Duplicate Code Tipo-1/2/3</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>sim</td>
+      <td class="numeric">~0.95 (NiCad/CCFinder)</td>
+      <td class="numeric">~0.95 (similar)</td>
+      <td class="gap neutral">≈0</td>
+      <td><span class="verdict v-rules">Regras (evidência)</span></td>
+      <td class="sources" style="color: var(--muted);">clone literature</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Duplicate Code Tipo-4 (semântico)</td>
+      <td><span class="badge fora">—</span></td>
+      <td>sim</td>
+      <td class="numeric">~0 (regras textuais)</td>
+      <td class="numeric">F1 alto (BigCloneBench)</td>
+      <td class="gap positive">gap muito grande</td>
+      <td><span class="verdict v-ml">ML</span></td>
+      <td class="sources" style="color: var(--muted);">clone ML literature</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Lazy Class</td>
+      <td><span class="badge fora">—</span></td>
+      <td>sim (limitado, n=409)</td>
+      <td class="numeric">~0.65 (R0903 proxy)</td>
+      <td class="numeric">0.83 (KNN)</td>
+      <td class="gap positive">+18 (estimado)</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources">
+        <abbr title="Yavuz 2024, KNN para Lazy Class em C++, n=409">Y24</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Data Class</td>
+      <td><span class="badge ml">✓ M</span></td>
+      <td>sim</td>
+      <td class="numeric">0.71–0.78 (Organic, PMD)</td>
+      <td class="numeric">0.85–0.89 (LLMs)</td>
+      <td class="gap positive">+7 a +18</td>
+      <td><span class="verdict v-ml">ML</span></td>
+      <td class="sources">
+        <abbr title="Fontana et al. 2016, EMSE">F16</abbr>
+        <abbr title="Beyazit et al. 2026, arXiv">B26</abbr>
+        <abbr title="Škipina et al. 2023, ESWA">S23</abbr>
+        <abbr title="Madeyski & Lewowski 2020, EASE (MLCQ)">ML20</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Dead Code intra-função</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>não</td>
+      <td class="numeric">~0.70–0.85 (CFG/DFA)</td>
+      <td class="numeric">—</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td class="sources" style="color: var(--muted);">CFG literature, doc Pylint/Vulture</span></td>
+    </tr>
+    <tr>
+      <td class="smell-name">Speculative Generality</td>
+      <td><span class="badge fora">—</span></td>
+      <td>parcial</td>
+      <td class="numeric">sem benchmark</td>
+      <td class="numeric">sem benchmark</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources" style="color: var(--muted);">ambiguidade fundamental</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>2.5 Couplers</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Status</th>
+      <th>ML estudado?</th>
+      <th>F1 regras</th>
+      <th>F1 ML</th>
+      <th>Gap (pp)</th>
+      <th>Vencedor</th>
+      <th>Fontes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Feature Envy</td>
+      <td><span class="badge ml">✓ M</span></td>
+      <td>sim (extensivamente)</td>
+      <td class="numeric">0.62 (JDeodorant)</td>
+      <td class="numeric">0.71–0.99* (realista ~0.71)</td>
+      <td class="gap positive">+9 a +15</td>
+      <td><span class="verdict v-ml">ML</span></td>
+      <td class="sources">
+        <abbr title="Fontana et al. 2016, EMSE">F16</abbr>
+        <abbr title="Di Nucci et al. 2018, SANER">DN18</abbr>
+        <abbr title="Liu et al. 2018, ASE">L18</abbr>
+        <abbr title="Liu et al. 2023, ESEC/FSE">L23</abbr>
+        <abbr title="Škipina et al. 2023, ESWA">S23</abbr>
+        <abbr title="Beyazit et al. 2026, arXiv">B26</abbr>
+        <abbr title="Tsantalis & Chatzigeorgiou 2009, ICSE">T09</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Inappropriate Intimacy</td>
+      <td><span class="badge fora">—</span></td>
+      <td>mínimo</td>
+      <td class="numeric">0.00–0.11 (warnings)</td>
+      <td class="numeric">sem comparativo direto</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources">
+        <abbr title="Hamouda et al. 2025, Smell-ML, IEEE Access">H25</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Long Message Chain</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>não</td>
+      <td class="numeric">n/d (regra trivial; PyExamine algoritmo)</td>
+      <td class="numeric">sem ML</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td class="sources" style="color: var(--muted);">—</td>
+    </tr>
+    <tr>
+      <td class="smell-name">Middle Man</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>não</td>
+      <td class="numeric">n/d (PyExamine algoritmo)</td>
+      <td class="numeric">sem ML</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td class="sources" style="color: var(--muted);">—</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>2.6 Fora do catálogo Fowler clássico</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Smell</th>
+      <th>Status</th>
+      <th>ML estudado?</th>
+      <th>F1 regras</th>
+      <th>F1 ML</th>
+      <th>Gap (pp)</th>
+      <th>Vencedor</th>
+      <th>Fontes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="smell-name">Deeply Nested Conditional</td>
+      <td><span class="badge estatica">✓ E</span></td>
+      <td>não</td>
+      <td class="numeric">~0.85–0.95 (count)</td>
+      <td class="numeric">—</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-rules-struct">Regras (estrutural)</span></td>
+      <td class="sources">
+        <abbr title="McCabe 1976, IEEE TSE — A complexity measure">M76</abbr>
+        <abbr title="Shepperd 1988, Software Engineering Journal">S88</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">God Class / Blob</td>
+      <td><span class="badge ml">✓ M</span></td>
+      <td>sim (extensivamente)</td>
+      <td class="numeric">0.63–0.65 (JDeodorant, JSpIRIT)</td>
+      <td class="numeric">0.85–0.93 (LLMs); 0.53 (CuBERT realista)</td>
+      <td class="gap positive">+17 a +28*</td>
+      <td><span class="verdict v-ml">ML</span></td>
+      <td class="sources">
+        <abbr title="Fontana et al. 2016, EMSE">F16</abbr>
+        <abbr title="Di Nucci et al. 2018, SANER">DN18</abbr>
+        <abbr title="Kovačević et al. 2022, ESWA">K22</abbr>
+        <abbr title="Beyazit et al. 2026, arXiv">B26</abbr>
+        <abbr title="Madeyski & Lewowski 2020, EASE (MLCQ)">ML20</abbr>
+      </td>
+    </tr>
+    <tr>
+      <td class="smell-name">Bad Naming</td>
+      <td><span class="badge fora">—</span></td>
+      <td>sim (NLP, IdBench)</td>
+      <td class="numeric">quase 0 (só estilo)</td>
+      <td class="numeric">F1 alto, mas não comparado a regras</td>
+      <td class="gap neutral">n/d</td>
+      <td><span class="verdict v-indet">Indeterminado</span></td>
+      <td class="sources" style="color: var(--muted);">DeepName, IdBench</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p style="font-size: 0.85rem; color: var(--muted); margin-top: -8px;">
+  *Notas: <strong>Feature Envy</strong> os 0.99 do Fontana são inflados por desbalanceamento; realístico em MLCQ é ~0.71. <strong>God Class</strong> os +17-28pp do LLM em Beyazit 2026 contrastam com −10pp do CuBERT em condições MLCQ realistas (Kovačević 2022) — gap real depende da metodologia, mas a tendência ML > regras se sustenta em múltiplos estudos.
+</p>
+
+<h2>3. Síntese estatística</h2>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="label">Vantagem ML clara</div>
+    <div class="number">5</div>
+    <div class="desc">≥+15pp em literatura: God Class, Data Class, Type-4 clones, Shotgun Surgery, Divergent Change</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">ML modesto</div>
+    <div class="number">1</div>
+    <div class="desc">+5 a +14pp: Feature Envy (gap +8pp em Beyazit 2026)</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Regras (evidência empírica)</div>
+    <div class="number">4</div>
+    <div class="desc">Comparação publicada favorece regras ou empate: Long Method (gap +3pp), Long Parameter List, Refused Bequest, Duplicate 1/2/3</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Regras (suficiência estrutural)</div>
+    <div class="number">5</div>
+    <div class="desc">Determinístico por construção, ML não testado: Magic Numbers, Dead Code, Deep Nesting, Long Message Chain, Middle Man</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Sem comparativo publicado</div>
+    <div class="number">8</div>
+    <div class="desc">Switch, Primitive Obsession, Data Clumps, Alt. Classes, Parallel Inheritance, Speculative Generality, Inappropriate Intimacy, Bad Naming</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Indeterminado</div>
+    <div class="number">2</div>
+    <div class="desc">Lazy Class (estudo ML pequeno sem baseline de regra), Comments smell (regra parcial só para TODOs)</div>
+  </div>
+</div>
+
+<h2>4. Caveats metodológicos</h2>
+
+<div class="callout">
+  <p style="margin: 0 0 8px;"><strong>Atenção ao usar esses números:</strong></p>
+  <ol style="margin: 0; padding-left: 20px;">
+    <li><strong>Quase tudo é Java.</strong> Transferência para Python perde ~5–10pp em F1 (literatura cross-language; Sandouka 2023; estudos de transfer learning).</li>
+    <li><strong>Números pré-2018 são suspeitos.</strong> Fontana 2016 (F1 0.96–0.99) foi sistematicamente deflacionado por Di Nucci 2018 e estudos subsequentes. Use só os números pós-2020.</li>
+    <li><strong>Cohen's kappa entre anotadores é 0.4–0.6</strong> para smells subjetivos — esse é o teto absoluto que nenhuma técnica cruza.</li>
+    <li><strong>Cross-project é o teste real.</strong> Within-project F1 de 0.85 vira ~0.55–0.65 em cross-project. A maioria dos números acima é within-project.</li>
+    <li><strong>F1 ML do Fontana e descendentes diretos foram baseados em datasets balanceados 50/50.</strong> Em prevalência realista (~2–5%), a maioria desses números cai 20–40pp.</li>
+  </ol>
+</div>
+
+<h2 id="fontes">5. Chave de fontes</h2>
+
+<div class="table-wrap">
+<table class="source-table">
+  <thead>
+    <tr>
+      <th>Código</th>
+      <th>Citação completa</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>F16</td>
+      <td>Fontana, Mäntylä, Zanoni, Marino. <em>Comparing and experimenting machine learning techniques for code smell detection</em>. Empirical Software Engineering 21(3), 2016. DOI: 10.1007/s10664-015-9378-4</td>
+    </tr>
+    <tr>
+      <td>DN18</td>
+      <td>Di Nucci, Palomba, Tamburri, Serebrenik, De Lucia. <em>Detecting code smells using machine learning techniques: are we there yet?</em> SANER 2018. DOI: 10.1109/SANER.2018.8330266</td>
+    </tr>
+    <tr>
+      <td>ML20</td>
+      <td>Madeyski, Lewowski. <em>MLCQ: Industry-Relevant Code Smell Data Set</em>. EASE 2020. DOI: 10.1145/3383219.3383264</td>
+    </tr>
+    <tr>
+      <td>L18</td>
+      <td>Liu, Xu, Chen et al. <em>Deep learning based feature envy detection</em>. ASE 2018. DOI: 10.1145/3238147.3238166</td>
+    </tr>
+    <tr>
+      <td>L23</td>
+      <td>Liu et al. <em>Deep Learning Based Feature Envy Detection Boosted by Real-World Examples</em>. ESEC/FSE 2023. DOI: 10.1145/3611643.3616353</td>
+    </tr>
+    <tr>
+      <td>K22</td>
+      <td>Kovačević et al. <em>Automatic detection of Long Method and God Class through neural source code embeddings</em>. Expert Systems with Applications, 2022. DOI: 10.1016/j.eswa.2022.118958</td>
+    </tr>
+    <tr>
+      <td>S23</td>
+      <td>Škipina et al. <em>Automatic detection of Feature Envy and Data Class code smells using machine learning</em>. ESWA 2023. DOI: 10.1016/j.eswa.2023.122855</td>
+    </tr>
+    <tr>
+      <td>B26</td>
+      <td>Beyazit et al. <em>Beyond Strict Rules: Assessing the Effectiveness of Large Language Models for Code Smell Detection</em>. arXiv:2601.09873, 2026.</td>
+    </tr>
+    <tr>
+      <td>P15</td>
+      <td>Palomba, Bavota et al. <em>Mining Version Histories for Detecting Code Smells (HIST)</em>. IEEE TSE 2015. DOI: 10.1109/TSE.2015.2392775</td>
+    </tr>
+    <tr>
+      <td>P17</td>
+      <td>Palomba et al. <em>On the diffuseness and the impact on maintainability of code smells</em>. Empirical Software Engineering 23(3), 2017. DOI: 10.1007/s10664-017-9535-z</td>
+    </tr>
+    <tr>
+      <td>T09</td>
+      <td>Tsantalis, Chatzigeorgiou. <em>Identification of move method refactoring opportunities (JDeodorant)</em>. IEEE TSE 2009. DOI: 10.1109/TSE.2009.1</td>
+    </tr>
+    <tr>
+      <td>C20</td>
+      <td>Chen et al. <em>AdaBoost-based Refused Bequest Code Smell Detection with Synthetic Instances</em>. DSA 2020. DOI: 10.1109/DSA51864.2020.00019</td>
+    </tr>
+    <tr>
+      <td>M76</td>
+      <td>McCabe. <em>A complexity measure</em>. IEEE TSE 2(4), 1976. DOI: 10.1109/TSE.1976.233837</td>
+    </tr>
+    <tr>
+      <td>S88</td>
+      <td>Shepperd. <em>Cyclomatic complexity: The nesting problem</em>. Software Engineering Journal 3(1), 1988. DOI: 10.1049/sej.1988.0003</td>
+    </tr>
+    <tr>
+      <td>H25</td>
+      <td>Hamouda et al. <em>Smell-ML</em>. IEEE Access, 2025.</td>
+    </tr>
+    <tr>
+      <td>Y24</td>
+      <td>Yavuz 2024. KNN para Lazy Class em C++, n=409.</td>
+    </tr>
+    <tr>
+      <td>D22</td>
+      <td>Dewangan et al. <em>Code Smell Detection Using Ensemble ML Algorithms</em>. Applied Sciences 12(20):10321, 2022. DOI: 10.3390/app122010321</td>
+    </tr>
+    <tr>
+      <td>SA23</td>
+      <td>Sandouka, Aljamaan. <em>Python Code Smell Datasets</em>. PeerJ Computer Science 9:e1370, 2023.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>6. O que isso significa para o nosso projeto</h2>
+
+<p>Os <strong>12 smells</strong> finais cobertos pela ferramenta estão organizados em três camadas, com workarounds opcionais sob decisão do trio:</p>
+
+<h3>6.1 Camada 1 — Regras estáticas core (5 smells)</h3>
+<ul>
+  <li><strong>Long Method</strong> <span class="verdict v-rules">Regras (evidência)</span> — F1 0.84 cross-project (Beyazit 2026); gap de +3pp para ML não justifica complexidade</li>
+  <li><strong>Long Parameter List</strong> <span class="verdict v-rules">Regras (evidência)</span> — regras vencem ML por 6pp</li>
+  <li><strong>Magic Numbers / Strings</strong> <span class="verdict v-rules-struct">Regras (estrutural)</span> — ruff PLR2004 + extensão AST</li>
+  <li><strong>Deeply Nested Conditional</strong> <span class="verdict v-rules-struct">Regras (estrutural)</span> — pylint R1702</li>
+  <li><strong>Dead Code intra-função</strong> <span class="verdict v-rules-struct">Regras (estrutural)</span> — pylint + vulture</li>
+</ul>
+
+<h3>6.2 Camada 2 — Regras estáticas adicionais (4 smells)</h3>
+<ul>
+  <li><strong>Refused Bequest</strong> <span class="verdict v-rules">Regras (evidência)</span> — MRO traversal + override count, regras vencem ML por 7pp</li>
+  <li><strong>Duplicate Code Tipo-1/2/3</strong> <span class="verdict v-rules">Regras (evidência)</span> — NiCad com suporte Python ou AST hash custom</li>
+  <li><strong>Long Message Chain</strong> <span class="verdict v-rules-struct">Regras (estrutural)</span> — algoritmo PyExamine portado</li>
+  <li><strong>Middle Man</strong> <span class="verdict v-rules-struct">Regras (estrutural)</span> — algoritmo PyExamine portado, intra-arquivo</li>
+</ul>
+
+<h3>6.3 Camada 3 — Detecção ML class-scope (3 smells)</h3>
+<p>Detecção via <strong>Qwen2.5-Coder-1.5B + LoRA classifier</strong> (mesmo modelo base dos LoRAs de refatoração):</p>
+<ul>
+  <li><strong>Feature Envy</strong> <span class="verdict v-ml-mod">ML modesto</span> — gap +8pp; F1 esperado em Python ~0.65-0.80</li>
+  <li><strong>God Class / Blob</strong> <span class="verdict v-ml">ML</span> — gap +23-28pp; F1 esperado em Python ~0.70-0.85</li>
+  <li><strong>Data Class</strong> <span class="verdict v-ml">ML</span> — gap +11pp; F1 esperado em Python ~0.70-0.85</li>
+</ul>
+
+<h3>6.4 Camada 4 — Workarounds (decisão pendente do trio)</h3>
+<p>Smells antes "fora do escopo" agora viáveis com workarounds confirmados:</p>
+<ul>
+  <li><strong>Type-4 semantic clones</strong> — UniXcoder zero-shot + GPTCloneBench Python pairs (~1-2 sem)</li>
+  <li><strong>Shotgun Surgery</strong> — PyDriller + co-change heuristic, requer flag <code>--repo-path</code> (~2-3 sem)</li>
+  <li><strong>Divergent Change</strong> — PyDriller + change-coupling, requer flag <code>--repo-path</code> (~2-3 sem)</li>
+</ul>
+<p>O trio escolhe entre: apenas Type-4 (recomendado se priorizar diferenciador no paper); apenas history-based; ambos; ou nenhum (foco no polimento dos 12 base).</p>
+
+<h3>6.5 Refatoração via LoRA (7 smells)</h3>
+<p>Geração automática de refatoração apenas para um subset dos 12 detectados — outros smells são <strong>detecção apenas</strong>, com sugestão textual/manual:</p>
+<ul>
+  <li><strong>R1</strong> Long Method → Extract Method</li>
+  <li><strong>R2</strong> Long Parameter List → Introduce Parameter Object</li>
+  <li><strong>R3</strong> Magic Numbers → Replace with Named Constant</li>
+  <li><strong>R4</strong> Deeply Nested → Guard Clauses</li>
+  <li><strong>R5</strong> Dead Code → Remove</li>
+  <li><strong>R6</strong> Feature Envy → Move Method</li>
+  <li><strong>R7</strong> God Class → Extract Class</li>
+</ul>
+
+<div class="callout">
+  <p style="margin: 0;"><strong>Stack unificado:</strong> Qwen2.5-Coder-1.5B é o único modelo base carregado em memória. <strong>11 LoRAs</strong> são swapados conforme tarefa: 7 LoRAs de refatoração + 3 LoRAs de classificação class-scope + 1 LoRA classifier de Long Method (apenas para ablação experimental no paper, comparando regras vs. ML). Treino reusa pipeline única de mineração via PyDriller.</p>
+</div>
+
+<h3>6.3 Smells deliberadamente fora do escopo</h3>
+<p>Apesar de gap ML real, ficam fora por restrições arquiteturais ou de dataset:</p>
+<ul>
+  <li><strong>Type-4 semantic clones</strong> — gap ML enorme, mas exige escopo multi-função e BigCloneBench é Java-only</li>
+  <li><strong>Shotgun Surgery / Divergent Change</strong> — gap ML grande, mas requer histórico de commits (fora de "arquivo enviado para CLI")</li>
+  <li><strong>Data Class</strong> — gap ML real, mas é class-scope; God Class já cobre a categoria class-scope com escopo de prazo limitado</li>
+</ul>
+
+<h3>6.4 Smells deliberadamente evitados</h3>
+<ul>
+  <li><strong>Refused Bequest</strong> — regras vencem, ML perde</li>
+  <li><strong>Bad Naming, Comments smell, Speculative Generality</strong> — ground truth fundamentalmente ruidoso (kappa baixo); pouca esperança de que qualquer técnica converja</li>
+  <li><strong>Inappropriate Intimacy</strong> — pylint W0212 já cobre o caso prático; literatura ML insuficiente</li>
+</ul>
+
+<div class="callout" style="margin-top: 30px;">
+  <p style="margin: 0;"><strong>Linha defensável no paper:</strong> "Selecionamos a cobertura per-smell minimizando complexidade arquitetural enquanto respeitamos a evidência empírica acumulada na literatura — ML onde Liu (2018), Kovačević (2022) e Beyazit (2026) mostram gap consistente; regras onde Beyazit (2026) e Di Nucci (2018) mostram equivalência ou superioridade."</p>
+</div>
+
+<footer>
+  Documento gerado a partir de revisão sistemática conduzida via três agentes paralelos (capacidade de ferramentas estáticas, literatura comparativa ML vs. regras, disponibilidade de datasets). Última revisão: maio 2026. Catálogo cobre os principais smells discutidos em literatura empírica de 1976 a 2026.
+</footer>
+
+</div>
+</body>
+</html>
