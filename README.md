@@ -266,3 +266,26 @@ Datasets externos para validação cruzada:
 ---
 
 *Engenharia de Software II — UFMG — 2026*
+
+---
+
+## Estrutura do repositório
+
+Este é o repositório do **código do TP** — o produto entregável. O projeto usa
+três repositórios, separados por papel:
+
+| Repositório | Papel | Visibilidade |
+|---|---|---|
+| **`tp-mineracao-manutencao`** (este) | código do TP: mineração, detecção, classificação, CLI | público |
+| `tp-es2-anotador` | ferramenta web de anotação do dataset de smells aparentes | público |
+| `tp-es2-dataset` | dados: seed de exemplos + anotações da revisão manual | privado |
+
+Layout do código:
+
+- `extracao/` — mineração de repositórios Git via PyDriller; extrai pares de
+  refatoração (antes/depois) a partir do histórico de commits.
+- `detectores/` — detecção estática dos 5 smells; cada detector expõe
+  `detect(fn) -> DetectionResult`.
+
+A divisão de trabalho por **trilhas (A/B/C)** é organizada em *branches e PRs*,
+não em repositórios — todo o código do produto mora aqui.
