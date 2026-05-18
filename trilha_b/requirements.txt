@@ -1,0 +1,10 @@
+transformers>=4.40
+peft>=0.10
+trl>=0.8
+datasets
+torch
+accelerate
+bitsandbytes
+pydantic
+pytest
+scikit-learn

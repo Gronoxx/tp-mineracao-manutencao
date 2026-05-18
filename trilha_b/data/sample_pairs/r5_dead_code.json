@@ -1,0 +1,42 @@
+[
+  {
+    "smell_type": "R5",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "compute_tax",
+    "before_code": "def compute_tax(income, filing_status):\n    if filing_status == 'single':\n        if income <= 11000:\n            rate = 0.10\n        elif income <= 44725:\n            rate = 0.12\n        else:\n            rate = 0.22\n        tax = income * rate\n        return tax\n        print(f'Tax computed: {tax}')  # dead: after return\n        tax = tax * 1.1  # dead: after return\n    elif filing_status == 'married':\n        if income <= 22000:\n            rate = 0.10\n        else:\n            rate = 0.12\n        return income * rate\n    else:\n        return 0\n    return -1  # dead: all branches already returned\n",
+    "after_code": "def compute_tax(income, filing_status):\n    if filing_status == 'single':\n        if income <= 11000:\n            rate = 0.10\n        elif income <= 44725:\n            rate = 0.12\n        else:\n            rate = 0.22\n        return income * rate\n    elif filing_status == 'married':\n        if income <= 22000:\n            rate = 0.10\n        else:\n            rate = 0.12\n        return income * rate\n    else:\n        return 0\n"
+  },
+  {
+    "smell_type": "R5",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "find_first_prime",
+    "before_code": "def find_first_prime(numbers):\n    for n in numbers:\n        if n < 2:\n            continue\n        is_prime = True\n        for divisor in range(2, int(n ** 0.5) + 1):\n            if n % divisor == 0:\n                is_prime = False\n                break\n        if is_prime:\n            return n\n    return None\n    # unreachable cleanup block\n    numbers = []\n    is_prime = False\n    divisor = 0\n",
+    "after_code": "def find_first_prime(numbers):\n    for n in numbers:\n        if n < 2:\n            continue\n        is_prime = True\n        for divisor in range(2, int(n ** 0.5) + 1):\n            if n % divisor == 0:\n                is_prime = False\n                break\n        if is_prime:\n            return n\n    return None\n"
+  },
+  {
+    "smell_type": "R5",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "normalize_score",
+    "before_code": "def normalize_score(raw_score, min_score, max_score):\n    if max_score == min_score:\n        return 0.0\n    normalized = (raw_score - min_score) / (max_score - min_score)\n    normalized = max(0.0, min(1.0, normalized))\n    return normalized\n    # dead code below\n    if normalized < 0:\n        normalized = 0.0\n    if normalized > 1:\n        normalized = 1.0\n    return normalized\n",
+    "after_code": "def normalize_score(raw_score, min_score, max_score):\n    if max_score == min_score:\n        return 0.0\n    normalized = (raw_score - min_score) / (max_score - min_score)\n    return max(0.0, min(1.0, normalized))\n"
+  },
+  {
+    "smell_type": "R5",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "authenticate_user",
+    "before_code": "import hashlib\n\ndef authenticate_user(username, password, user_store):\n    if not username or not password:\n        return {'authenticated': False, 'reason': 'missing credentials'}\n    record = user_store.get(username)\n    if record is None:\n        return {'authenticated': False, 'reason': 'user not found'}\n    expected_hash = hashlib.sha256(password.encode()).hexdigest()\n    if record['password_hash'] != expected_hash:\n        return {'authenticated': False, 'reason': 'wrong password'}\n    if not record.get('is_active', True):\n        return {'authenticated': False, 'reason': 'account disabled'}\n    return {'authenticated': True, 'user_id': record['id']}\n    # dead: post-return audit log that was never wired up\n    audit_entry = {'user': username, 'action': 'login'}\n    user_store['_audit_log'] = user_store.get('_audit_log', [])\n    user_store['_audit_log'].append(audit_entry)\n",
+    "after_code": "import hashlib\n\n\ndef authenticate_user(username, password, user_store):\n    if not username or not password:\n        return {'authenticated': False, 'reason': 'missing credentials'}\n    record = user_store.get(username)\n    if record is None:\n        return {'authenticated': False, 'reason': 'user not found'}\n    expected_hash = hashlib.sha256(password.encode()).hexdigest()\n    if record['password_hash'] != expected_hash:\n        return {'authenticated': False, 'reason': 'wrong password'}\n    if not record.get('is_active', True):\n        return {'authenticated': False, 'reason': 'account disabled'}\n    return {'authenticated': True, 'user_id': record['id']}\n"
+  },
+  {
+    "smell_type": "R5",
+    "repo": "example",
+    "commit_hash": "manual",
+    "function_name": "merge_configs",
+    "before_code": "def merge_configs(base, override):\n    result = dict(base)\n    for key, value in override.items():\n        if key in result and isinstance(result[key], dict) and isinstance(value, dict):\n            result[key] = merge_configs(result[key], value)\n        else:\n            result[key] = value\n    return result\n    # dead: was used for flattening but feature was dropped\n    flat = {}\n    for k, v in result.items():\n        if isinstance(v, dict):\n            for sub_k, sub_v in v.items():\n                flat[f'{k}.{sub_k}'] = sub_v\n        else:\n            flat[k] = v\n    return flat\n",
+    "after_code": "def merge_configs(base, override):\n    result = dict(base)\n    for key, value in override.items():\n        if key in result and isinstance(result[key], dict) and isinstance(value, dict):\n            result[key] = merge_configs(result[key], value)\n        else:\n            result[key] = value\n    return result\n"
+  }
+]
