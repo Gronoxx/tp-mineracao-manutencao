@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from .smells import SmellType  # noqa: F401  (re-exportado para compatibilidade)
 
 ReviewStatus = Literal["clean", "noisy", "rejected"]
+Confianca = Literal["alta", "media", "baixa"]
 
 
 class ReviewBlock(BaseModel):
@@ -28,6 +29,8 @@ class ReviewBlock(BaseModel):
     reviewer: Optional[str] = None
     timestamp: Optional[str] = None
     notes: str = ""
+    justificativa: Optional[str] = None  # obrigatória p/ `rejected`/`noisy` (no curador)
+    confianca: Optional[Confianca] = None  # D3: confiança do revisor (opcional)
 
 
 class RefactoringPair(BaseModel):

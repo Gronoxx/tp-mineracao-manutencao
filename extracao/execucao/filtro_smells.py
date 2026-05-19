@@ -25,6 +25,9 @@ from threading import Timer
 from flask import Flask, jsonify, render_template_string, request
 
 VALID_STATUS = {"clean", "noisy", "rejected"}
+VALID_CONFIANCA = {"alta", "media", "baixa"}
+# Vereditos que exigem justificativa do revisor (rastreabilidade da curadoria).
+STATUS_EXIGE_JUSTIFICATIVA = {"noisy", "rejected"}
 
 # ── HTML ─────────────────────────────────────────────────────────────────────
 
@@ -101,6 +104,7 @@ HTML = """<!DOCTYPE html>
   .review-bar label { font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 5px; }
   .review-bar input[type=text] { background: var(--bg); color: var(--txt);
        border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; }
+  .review-bar input.justificativa { min-width: 260px; flex: 1; }
   .rstatus { margin-left: auto; font-size: 0.8rem; color: var(--muted); }
   .noisy-editor { padding: 12px 16px; display: none; gap: 12px; flex-direction: column;
                   background: var(--bg); border-top: 1px solid var(--border); }
@@ -167,6 +171,7 @@ HTML = """<!DOCTYPE html>
     container.innerHTML = data.pairs.map((p, i) => {
       const rv = p._review || {};
       const st = rv.status || '';
+      const conf = rv.confianca || '';
       const bc = (rv.before_clean != null) ? rv.before_clean : p.before_code;
       const ac = (rv.after_clean  != null) ? rv.after_clean  : p.after_code;
       const vbadge = p.verified
@@ -188,6 +193,15 @@ HTML = """<!DOCTYPE html>
           <button class="vbtn noisy ${st==='noisy'?'on':''}"       onclick="openNoisy(this)">Ruidosa</button>
           <button class="vbtn rejected ${st==='rejected'?'on':''}" onclick="verdict(this,'rejected')">Rejeitar</button>
           <label><input type="checkbox" class="oor" ${rv.out_of_rule?'checked':''}> fora da regra</label>
+          <input type="text" class="justificativa"
+                 placeholder="justificativa (obrigatoria p/ ruidosa/rejeitar)"
+                 value="${esc(rv.justificativa||'')}">
+          <select class="confianca" title="confianca do revisor (opcional)">
+            <option value=""      ${conf===''     ?'selected':''}>confianca?</option>
+            <option value="alta"  ${conf==='alta' ?'selected':''}>alta</option>
+            <option value="media" ${conf==='media'?'selected':''}>media</option>
+            <option value="baixa" ${conf==='baixa'?'selected':''}>baixa</option>
+          </select>
           <input type="text" class="notes" placeholder="notas" value="${esc(rv.notes||'')}">
           <span class="rstatus">${st ? 'veredito: ' + st : 'pendente'}</span>
         </div>
@@ -213,6 +227,8 @@ HTML = """<!DOCTYPE html>
       status: status,
       out_of_rule: pairEl.querySelector('.oor').checked,
       notes: pairEl.querySelector('.notes').value,
+      justificativa: pairEl.querySelector('.justificativa').value,
+      confianca: pairEl.querySelector('.confianca').value || null,
     }, extra || {});
     const res = await fetch('/review', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -410,6 +426,13 @@ def create_app(data_dir: Path, reviews_dir: Path, limit: int) -> Flask:
             return jsonify({"ok": False, "error": "smell e id obrigatorios"})
         if status not in VALID_STATUS:
             return jsonify({"ok": False, "error": f"status invalido: {status}"})
+        justificativa = (body.get("justificativa") or "").strip()
+        if status in STATUS_EXIGE_JUSTIFICATIVA and not justificativa:
+            return jsonify({"ok": False,
+                            "error": f"justificativa obrigatoria para veredito '{status}'"})
+        confianca = body.get("confianca") or None
+        if confianca is not None and confianca not in VALID_CONFIANCA:
+            return jsonify({"ok": False, "error": f"confianca invalida: {confianca}"})
         record = {
             "id": pid,
             "status": status,
@@ -418,6 +441,8 @@ def create_app(data_dir: Path, reviews_dir: Path, limit: int) -> Flask:
             "out_of_rule": bool(body.get("out_of_rule")),
             "reviewer": body.get("reviewer"),
             "notes": body.get("notes", ""),
+            "justificativa": justificativa or None,
+            "confianca": confianca,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         save_review(reviews_dir, smell, record)
