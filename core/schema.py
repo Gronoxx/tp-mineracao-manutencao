@@ -70,9 +70,13 @@ class RefactoringPair(BaseModel):
     def _fill_id(self) -> "RefactoringPair":
         """`id` estável (hash) se não vier preenchido — chave de dedup/curadoria."""
         if not self.id:
+            # `smell_type` entra no hash (F4): o mesmo trecho before/after pode
+            # ser verificado para 2 smells distintos — sem isso os dois pares
+            # colidiriam no `id` e um sobrescreveria o outro na dedup.
             base = "|".join([
                 self.repo, self.commit_hash, self.file or "",
-                self.function_name or "", self.before_code, self.after_code,
+                self.function_name or "", str(self.smell_type),
+                self.before_code, self.after_code,
             ])
             self.id = hashlib.sha1(base.encode("utf-8", "replace")).hexdigest()[:16]
         return self

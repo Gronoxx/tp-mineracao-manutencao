@@ -50,6 +50,19 @@ def matched_keywords(commit_msg: str) -> list[str]:
     return [kw for kw in SMELL_KEYWORDS if kw in msg]
 
 
+def _is_test_path(path: str) -> bool:
+    """True se `path` é de um arquivo de teste.
+
+    Casa por componente de caminho, não por substring — `"test" in path`
+    pegava `latest/`, `contest.py` etc. por engano.
+    """
+    parts = Path(path).parts
+    if any(p in ("test", "tests") for p in parts[:-1]):
+        return True
+    name = parts[-1] if parts else ""
+    return name.startswith("test_") or name.endswith("_test.py")
+
+
 def is_valid_pair(before: str, after: str) -> bool:
     """Par sintaticamente válido, não-trivial e de fato alterado."""
     try:
@@ -153,13 +166,17 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
 
         if smell_code == "R1":  # Extract Method — o `after` inclui os helpers
             helpers = candidate["helper_sources"]
+            # F3: encurtar um Long Method sem extrair nenhum helper não é
+            # Extract Method (pode ser inline, deleção etc.) — não é par R1.
+            if not helpers:
+                continue
             long_det = DETECTORS["long_method"]
             # nenhum helper pode ser longo (senão não resolveu o smell)
-            if any((_funcinfo(h) and long_det(_funcinfo(h)).detected) for h in helpers):
+            helper_infos = [_funcinfo(h) for h in helpers]
+            if any(hi and long_det(hi).detected for hi in helper_infos):
                 continue
-            if helpers:
-                after_code = af.source + "\n\n\n" + "\n\n\n".join(helpers)
-                n_after = 1 + len(helpers)
+            after_code = af.source + "\n\n\n" + "\n\n\n".join(helpers)
+            n_after = 1 + len(helpers)
 
         records.append(RefactoringPair(
             before_code=bf.source,
@@ -212,7 +229,7 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
 
         for mf in commit.modified_files:
             path = mf.new_path or mf.old_path or mf.filename or ""
-            if not path.endswith(".py") or "test" in path.lower():
+            if not path.endswith(".py") or _is_test_path(path):
                 continue
             if mf.source_code_before is None or mf.source_code is None:
                 continue
