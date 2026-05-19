@@ -7,4 +7,5 @@ accelerate
 bitsandbytes
 pydantic
 pytest
+pytest-cov
 scikit-learn
