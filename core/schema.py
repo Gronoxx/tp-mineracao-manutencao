@@ -57,6 +57,10 @@ class RefactoringPair(BaseModel):
     detector_before: Optional[dict] = None
     detector_after: Optional[dict] = None
     verified: bool = False
+    # E1 — verificação permissiva: `True` quando o detector ainda dispara no
+    # `after` mas com magnitude reduzida (refactor parcial). Default `False`
+    # preserva o comportamento estrito (only-strict pairs nas execuções antigas).
+    partial: bool = False
     n_functions_after: Optional[int] = None
 
     # --- preenchido pelo curador (estágio 4) ---
