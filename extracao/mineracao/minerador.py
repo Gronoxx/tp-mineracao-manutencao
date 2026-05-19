@@ -242,8 +242,15 @@ def _merge_write(output_path: Path, by_smell: dict[str, dict[str, dict]]) -> dic
     return counts
 
 
+def _caps_atingidos(by_smell: dict[str, dict], caps: dict[str, int]) -> bool:
+    """True se todo smell de `caps` já atingiu seu limite em `by_smell` —
+    sinal para `mine()` parar de varrer o repositório mais cedo."""
+    return all(len(by_smell.get(s, {})) >= n for s, n in caps.items())
+
+
 def mine(repo_url: str, output_path: Path, since=None, to=None,
-         max_commits: int | None = None) -> dict:
+         max_commits: int | None = None,
+         caps: dict[str, int] | None = None) -> dict:
     """Minera um repositório → mescla `<smell>.jsonl` em `output_path`.
 
     Escrita acumulativa: registros já em `output_path` (de execuções
@@ -251,7 +258,12 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
     `id`, então chamar `mine()` para vários repositórios no mesmo diretório
     acumula em vez de sobrescrever. Idempotente: rodar o mesmo repositório 2×
     não duplica. O `dict` retornado conta só os pares encontrados nesta
-    chamada."""
+    chamada.
+
+    `caps` (opcional): teto de pares por smell-code para ESTA chamada — quando
+    um smell atinge o teto, novos pares dele são ignorados; quando todos os
+    smells de `caps` enchem, a varredura do repositório para. O runner usa isso
+    para distribuir o cap global entre os repositórios (diversidade)."""
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -286,6 +298,14 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
                     parent_commit=parent, commit_msg=commit.msg,
                     msg_keywords=keywords, filename=path,
                 ):
-                    by_smell.setdefault(rec.smell_type, {})[rec.id] = rec.model_dump()
+                    bucket = by_smell.setdefault(rec.smell_type, {})
+                    # respeita o teto por smell desta chamada (`caps`)
+                    if (caps is not None and rec.id not in bucket
+                            and len(bucket) >= caps.get(rec.smell_type, float("inf"))):
+                        continue
+                    bucket[rec.id] = rec.model_dump()
+
+        if caps is not None and _caps_atingidos(by_smell, caps):
+            break   # todos os smells encheram o orçamento — para a varredura
 
     return _merge_write(output_path, by_smell)
