@@ -87,6 +87,35 @@ _UNUSED_VAR_CASES = [
     ("except-as",
      "def f():\n    try:\n        pass\n    except Exception as e:\n"
      "        return 0\n", 0),
+    # except-as unused (`e` nunca lido): `ExceptHandler.name` é uma string,
+    # não um `Name(Store)` — então não entra em `assigned`. Comportamento
+    # travado: 0 (igual a parâmetro de interface — sem semântica de módulo
+    # não dá pra dizer se é dead ou contrato).
+    ("except-as não lido",
+     "def f():\n    try:\n        pass\n    except Exception as e:\n"
+     "        pass\n", 0),
+    # I1 (revisão PR #16): alvo de comprehension não usado é idioma — não
+    # reportar. Comprehensions têm escopo próprio em Python 3.
+    ("I1: alvo de comprehension não usado",
+     "def f(items):\n    return [1 for x in items]\n", 0),
+    # I2 (revisão PR #16): walrus em if-test sem leitura subsequente — o
+    # valor é consumido pelo `if`, não é dead.
+    ("I2: walrus em if-test (sem leitura subsequente)",
+     "def f(xs):\n    if (n := compute(xs)):\n        return 0\n"
+     "    return 1\n", 0),
+    # C1 (revisão PR #16): função aninhada reusa um nome local; o local
+    # externo é DEAD e DEVE ser reportado. `ast.walk` flatten antigo
+    # mascarava esse caso pelo Load do binding interno subir para o externo.
+    ("C1: inner func reusa nome — outer local fica morto",
+     "def outer():\n    total = 100\n"
+     "    def helper():\n        total = 0\n        return total + 1\n"
+     "    return helper()\n", 1),
+    # Caso simétrico de C1: outer usado por closure LEGÍTIMA (sem rebinding
+    # interno) — NÃO reportar. A free var do inner deve subir para o externo.
+    ("C1 simétrico: outer usado por closure (sem reuso) — não reporta",
+     "def outer():\n    total = 100\n"
+     "    def helper():\n        return total\n"
+     "    return helper()\n", 0),
 ]
 
 
@@ -124,3 +153,45 @@ def test_detect_nao_dispara_em_param_de_interface():
     """`detect` completo: param de interface -> detected=False (antes era FP)."""
     res = detect(_fn("def hook(self, ctx, event):\n    return ctx\n"))
     assert res.detected is False
+
+
+# --------------------------------------------------------------------------
+# Regressões da revisão do PR #16 — bugs achados na própria reescrita AST.
+# --------------------------------------------------------------------------
+
+def test_c1_inner_reusa_nome_nao_mascara_outer_dead():
+    """C1 — bug headline: inner func que reusa um identificador comum
+    (`total`, `result`, `tmp`) NÃO pode mascarar o local externo morto."""
+    src = ("def outer():\n"
+           "    total = 100\n"
+           "    def helper():\n"
+           "        total = 0\n"
+           "        return total + 1\n"
+           "    return helper()\n")
+    achados = _find_unused_vars(src)
+    assert {"type": "unused_var", "lineno": 2} in achados
+
+
+def test_c1_closure_legitima_continua_suprimindo_report():
+    """Inverso de C1: closure que lê o nome do externo (sem rebinding
+    interno) é uso legítimo — externo NÃO deve ser reportado."""
+    src = ("def outer():\n"
+           "    total = 100\n"
+           "    def helper():\n"
+           "        return total\n"
+           "    return helper()\n")
+    assert _find_unused_vars(src) == []
+
+
+def test_i1_alvo_de_comprehension_nao_usado_nao_dispara():
+    """I1 — alvo de comprehension não usado é idioma comum (`[1 for x in ...]`)."""
+    assert _find_unused_vars("def f(items):\n    return [1 for x in items]\n") == []
+
+
+def test_i2_walrus_target_nao_eh_reportado():
+    """I2 — walrus em if-test: valor consumido pela expressão, não é dead."""
+    src = ("def f(xs):\n"
+           "    if (n := compute(xs)):\n"
+           "        return 0\n"
+           "    return 1\n")
+    assert _find_unused_vars(src) == []
