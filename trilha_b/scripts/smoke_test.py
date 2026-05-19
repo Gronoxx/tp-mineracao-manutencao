@@ -25,7 +25,7 @@ def _run_one_step(pair: dict) -> float:
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import LoraConfig, get_peft_model
 
-    from instruction_templates import build_prompt
+    from instruction_templates import build_training_text
     from lora_config import LoRATrainingConfig, LORA_TARGET_MODULES
 
     MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
@@ -54,8 +54,10 @@ def _run_one_step(pair: dict) -> float:
     model = get_peft_model(model, lora_cfg)
     model.train()
 
-    prompt = build_prompt(pair["smell_type"], pair["before_code"], pair["after_code"])
-    prompt += tokenizer.eos_token
+    # D-DEV-04: prompt via o chat template oficial do tokenizer.
+    prompt = build_training_text(
+        pair["smell_type"], pair["before_code"], pair["after_code"], tokenizer
+    )
 
     inputs = tokenizer(
         prompt,

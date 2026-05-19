@@ -1,6 +1,23 @@
-from typing import Literal
+"""Templates de instrução por smell para o fine-tuning dos LoRAs (R1–R5).
 
-SmellType = Literal["R1", "R2", "R3", "R4", "R5"]
+D-DEV-04: o prompt de treino usa o **chat template oficial do tokenizer**
+(`tokenizer.apply_chat_template`) em vez de um template proprietário. O modelo
+já viu esse formato no pretraining → converge melhor, e o baseline B0
+(zero-shot) fica comparável.
+
+D-DEV-05: as regras em `_TEMPLATES` impõem estilo (ALL_CAPS, dataclass
+`__post_init__`, guard clauses left-aligned). Se os pares minerados reais não
+seguirem essas regras, a instrução contradiz o label. Antes do treino, auditar
+uma amostra dos pares minerados contra estas regras (ver plano, decisão nº 6).
+"""
+import sys
+from pathlib import Path
+
+_root = str(Path(__file__).resolve().parents[2])
+if _root not in sys.path:
+    sys.path.insert(0, _root)
+
+from core.smells import SmellType  # noqa: E402,F401
 
 _TEMPLATES: dict[str, dict[str, str]] = {
     "R1": {
@@ -59,33 +76,55 @@ _TEMPLATES: dict[str, dict[str, str]] = {
     },
 }
 
-_PROMPT_TEMPLATE = """\
-<|system|>
-You are a Python refactoring assistant. Your task is to {smell_description}.
-Apply the refactoring strictly: {refactoring_rule}
-Return ONLY the refactored code, no explanations.
-<|user|>
-{before_code}
-<|assistant|>
-{after_code}"""
+_SYSTEM = (
+    "You are a Python refactoring assistant. Your task is to {smell_description}.\n"
+    "Apply the refactoring strictly: {refactoring_rule}\n"
+    "Return ONLY the refactored code, no explanations."
+)
 
 
-def build_prompt(
+def build_messages(
     smell_type: SmellType,
     before_code: str,
-    after_code: str = "",
-) -> str:
+    after_code: str | None = None,
+) -> list[dict]:
+    """Lista de mensagens `[system, user, (assistant)]` para o chat template.
+
+    `after_code=None` → mensagens só até o turno do usuário (uso em inferência).
+    """
     if smell_type not in _TEMPLATES:
         raise ValueError(f"Unknown smell type: {smell_type}. Must be one of {list(_TEMPLATES)}")
     ctx = _TEMPLATES[smell_type]
-    return _PROMPT_TEMPLATE.format(
-        smell_description=ctx["smell_description"],
-        refactoring_rule=ctx["refactoring_rule"],
-        before_code=before_code,
-        after_code=after_code,
+    messages = [
+        {"role": "system", "content": _SYSTEM.format(**ctx)},
+        {"role": "user", "content": before_code},
+    ]
+    if after_code is not None:
+        messages.append({"role": "assistant", "content": after_code})
+    return messages
+
+
+def build_training_text(
+    smell_type: SmellType,
+    before_code: str,
+    after_code: str,
+    tokenizer,
+) -> str:
+    """Texto de treino (conversa completa) via o chat template oficial do modelo."""
+    return tokenizer.apply_chat_template(
+        build_messages(smell_type, before_code, after_code),
+        tokenize=False,
     )
 
 
-def build_inference_prompt(smell_type: SmellType, before_code: str) -> str:
-    """Returns the prompt up to (but not including) the assistant turn, for inference."""
-    return build_prompt(smell_type, before_code, after_code="").rstrip()
+def build_inference_text(
+    smell_type: SmellType,
+    before_code: str,
+    tokenizer,
+) -> str:
+    """Prompt para inferência — termina no início do turno do assistente."""
+    return tokenizer.apply_chat_template(
+        build_messages(smell_type, before_code),
+        tokenize=False,
+        add_generation_prompt=True,
+    )
