@@ -4,8 +4,10 @@
 listas de statements; em `IfExp` (ternário) e `Lambda` são um nó de expressão
 único → `TypeError: 'Call' object is not iterable`, que derrubava `mine()`.
 """
+import pytest
+
 from core.ast_types import FunctionInfo
-from detectores.dead_code import _find_unreachable, detect
+from detectores.dead_code import _find_unreachable, _find_unused_vars, detect
 
 
 def _fn(source: str) -> FunctionInfo:
@@ -38,3 +40,87 @@ def test_detect_sobrevive_a_ternario():
     """O detector completo não pode quebrar num par com ternário (regressão F6)."""
     res = detect(_fn("def f(x):\n    return 1 if x else 2\n"))
     assert res.smell == "dead_code" and res.detected is False
+
+
+# --------------------------------------------------------------------------
+# `_find_unused_vars` — investigação F-R5.
+#
+# A versão anterior rodava `vulture <tmpfile> --min-confidence 80` sobre a
+# função isolada. Empiricamente (vulture 2.16): locais não usados saem a 60%
+# de confiança e parâmetros não usados a 100%. Com o corte em 80% o detector
+# ficava INVERTIDO — descartava todo local morto (sound) e disparava só em
+# parâmetros (unsound: param de interface não é dead code). A versão `ast`
+# corrige a inversão: reporta locais, nunca parâmetros.
+# --------------------------------------------------------------------------
+
+# (descrição, fonte, nº esperado de achados unused_var)
+_UNUSED_VAR_CASES = [
+    ("local morto", "def f(a):\n    x = 1\n    return a + 2\n", 1),
+    ("dois locais mortos",
+     "def p(a, b):\n    result = 0\n    junk = 99\n    return a + b\n", 2),
+    ("local usado", "def g(a):\n    x = a + 1\n    return x\n", 0),
+    # parâmetros de interface: NUNCA reportados (correção da inversão)
+    ("params de interface",
+     "def on_event(sender, event, context):\n    return 1\n", 0),
+    ("**kwargs", "def h(data, **kwargs):\n    return data\n", 0),
+    ("*args", "def v(first, *args):\n    return first\n", 0),
+    ("param usado só em closure",
+     "def outer(factor):\n    def inner(v):\n        return v * factor\n"
+     "    return inner\n", 0),
+    # idiomas intencionais: não reportar
+    ("var de loop não usada",
+     "def f(it):\n    for i in it:\n        print(1)\n    return 0\n", 0),
+    ("desempacotamento parcial de tupla",
+     "def f(p):\n    a, b = p\n    return a\n", 0),
+    ("augassign", "def f(a):\n    s = 0\n    s += a\n    return 1\n", 0),
+    ("walrus em comprehension",
+     "def f(xs):\n    return [y for x in xs if (y := x * 2) > 0]\n", 0),
+    ("global", "def f():\n    global G\n    G = 5\n", 0),
+    ("underscore descartado", "def f(p):\n    _ = p\n    return 1\n", 0),
+    ("del referencia o binding", "def f():\n    t = 1\n    del t\n", 0),
+    # método: `source` de um método é o `def` sozinho — `self` é só um param
+    ("método com self e local morto",
+     "def m(self, x):\n    y = 1\n    return x\n", 1),
+    # with-as não usado: tratado como local morto (igual ao vulture)
+    ("with-as não usado",
+     "def f():\n    with open('x') as fh:\n        return 1\n", 1),
+    ("except-as",
+     "def f():\n    try:\n        pass\n    except Exception as e:\n"
+     "        return 0\n", 0),
+]
+
+
+@pytest.mark.parametrize(
+    "desc,src,esperado", _UNUSED_VAR_CASES, ids=[c[0] for c in _UNUSED_VAR_CASES]
+)
+def test_find_unused_vars(desc, src, esperado):
+    achados = _find_unused_vars(src)
+    assert len(achados) == esperado, f"{desc}: {achados}"
+    for a in achados:
+        assert a["type"] == "unused_var"
+        assert isinstance(a["lineno"], int)
+
+
+def test_find_unused_vars_nao_dispara_em_param_de_interface():
+    """Regressão F-R5: param não usado no corpo NÃO é dead code (contrato)."""
+    src = "def callback(request, response, *, retries):\n    return response\n"
+    assert _find_unused_vars(src) == []
+
+
+def test_find_unused_vars_ainda_pega_local_genuinamente_morto():
+    """Regressão F-R5: local morto deve continuar sendo detectado (true positive)."""
+    achados = _find_unused_vars("def f(a):\n    morto = a * 999\n    return a\n")
+    assert len(achados) == 1 and achados[0]["lineno"] == 2
+
+
+def test_detect_dispara_em_local_morto():
+    """`detect` completo: local morto -> detected=True (antes era missado)."""
+    res = detect(_fn("def f(a):\n    sobra = 1\n    return a\n"))
+    assert res.detected is True
+    assert {"type": "unused_var", "lineno": 2} in res.evidence["dead_code"]
+
+
+def test_detect_nao_dispara_em_param_de_interface():
+    """`detect` completo: param de interface -> detected=False (antes era FP)."""
+    res = detect(_fn("def hook(self, ctx, event):\n    return ctx\n"))
+    assert res.detected is False
