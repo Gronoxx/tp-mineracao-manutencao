@@ -38,17 +38,43 @@ TO = datetime(2024, 12, 31)
 
 OUTPUT = Path("data/raw")
 
+# Cap global por smell — alvo de um dataset de tamanho revisável (~300/smell,
+# estimativa do ESCOPO P3). A mineração para de coletar um smell ao atingi-lo.
+CAP_POR_SMELL = 300
+SMELLS = ("R1", "R2", "R3", "R4", "R5")
+
+
+def _orcamento_repo(total: dict[str, int], repos_restantes: int,
+                    cap: int = CAP_POR_SMELL) -> dict[str, int]:
+    """Orçamento de pares por smell para o próximo repositório.
+
+    Distribui o cap restante de cada smell igualmente entre os repositórios
+    ainda não minerados: nenhum repo enche o cap sozinho, então os ~300 pares
+    vêm distribuídos por vários repos (diversidade de proveniência). É
+    adaptativo — se os repos anteriores renderam pouco, o orçamento dos
+    próximos cresce."""
+    repos_restantes = max(1, repos_restantes)
+    orcamento = {}
+    for s in SMELLS:
+        restante = max(0, cap - total.get(s, 0))
+        orcamento[s] = -(-restante // repos_restantes)  # divisão para cima
+    return orcamento
+
 
 def main() -> None:
-    total: dict[str, int] = {}
-    for repo in REPOS:
-        print(f"Minerando {repo} ...")
-        counts = mine(repo_url=repo, output_path=OUTPUT, since=SINCE, to=TO)
+    total: dict[str, int] = {s: 0 for s in SMELLS}
+    for i, repo in enumerate(REPOS):
+        if all(total[s] >= CAP_POR_SMELL for s in SMELLS):
+            print(f"Todos os smells atingiram o cap ({CAP_POR_SMELL}) — encerrando.")
+            break
+        caps = _orcamento_repo(total, repos_restantes=len(REPOS) - i)
+        print(f"Minerando {repo} ... (orçamento/smell: {caps})")
+        counts = mine(repo_url=repo, output_path=OUTPUT, since=SINCE, to=TO, caps=caps)
         for smell, n in counts.items():
             total[smell] = total.get(smell, 0) + n
-        print(f"  -> {counts}")
+        print(f"  -> {counts}  | acumulado: {total}")
     print(f"\nTotal por smell: {total}")
-    print(f"Pares escritos em {OUTPUT}/")
+    print(f"Pares escritos em {OUTPUT}/  (cap {CAP_POR_SMELL}/smell)")
 
 
 if __name__ == "__main__":
