@@ -1,0 +1,4 @@
+# Dependências de desenvolvimento — suíte de testes em `tests/`.
+# Uso: pip install -r requirements-dev.txt && pytest
+pytest
+pytest-cov
