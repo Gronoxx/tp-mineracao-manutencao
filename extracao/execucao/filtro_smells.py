@@ -124,7 +124,7 @@ HTML = """<!DOCTYPE html>
 </head>
 <body>
 <header>
-  <h1>Curador</h1>
+  <h1>Curador{% if reviewer %} — {{ reviewer }}{% if adjudicar %} (adjudicacao){% endif %}{% endif %}</h1>
   <span class="stats"><span id="counter">—</span></span>
   <div class="controls">
     <select id="smell-filter" onchange="loadPairs()">
@@ -319,10 +319,44 @@ def build_diff_rows(before, after):
                 rows.append(f'<tr>{dn}{dc}{in_}{ic}</tr>')
     return "".join(rows)
 
+# ── Atribuição de blocos (revisão dupla) ─────────────────────────────────────
+
+def load_assignment(path: Path) -> dict | None:
+    """`assignment.json` (gerado por `gerar_blocos.py`), ou `None` se ausente."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _id_para_bloco(assignment: dict) -> dict:
+    """Mapa `id-do-par -> bloco` (revisores + adjudicador)."""
+    out = {}
+    for bloco in assignment["blocos"]:
+        for par in bloco["pares"]:
+            out[par["id"]] = bloco
+    return out
+
+
+def _e_divergente(pid: str, bloco: dict, reviews: dict) -> bool:
+    """True se os 2 revisores primários revisaram o par e divergiram.
+
+    Consenso `clean` ou consenso `rejected` = não-divergente; qualquer outra
+    combinação (inclui `noisy`, cujo recorte é subjetivo) = divergente."""
+    r1, r2 = bloco["revisores"]
+    v1, v2 = reviews.get((pid, r1)), reviews.get((pid, r2))
+    if v1 is None or v2 is None:
+        return False  # revisão incompleta — ainda não é divergência
+    s1, s2 = v1.get("status"), v2.get("status")
+    return not (s1 == s2 == "clean" or s1 == s2 == "rejected")
+
 # ── Sidecar de vereditos ─────────────────────────────────────────────────────
 
 def load_reviews(reviews_dir: Path, smell: str) -> dict:
-    """Vereditos do sidecar `<smell>.reviews.jsonl`, indexados por id."""
+    """Vereditos do sidecar `<smell>.reviews.jsonl`, indexados por `(id, revisor)`.
+
+    Registros legados sem `reviewer` viram a chave `(id, None)` — o formato em
+    disco não muda (um objeto JSON por linha), só o índice em memória."""
     path = reviews_dir / f"{smell}.reviews.jsonl"
     out = {}
     if path.exists():
@@ -335,15 +369,16 @@ def load_reviews(reviews_dir: Path, smell: str) -> dict:
             except json.JSONDecodeError:
                 continue
             if r.get("id"):
-                out[r["id"]] = r
+                out[(r["id"], r.get("reviewer"))] = r
     return out
 
 
 def save_review(reviews_dir: Path, smell: str, review: dict) -> None:
-    """Upsert de um veredito no sidecar (reescreve só o sidecar, nunca o raw)."""
+    """Upsert de um veredito no sidecar — chave `(id, revisor)`, para que os
+    vereditos dos 2 revisores do mesmo par coexistam (reescreve só o sidecar)."""
     reviews_dir.mkdir(parents=True, exist_ok=True)
     reviews = load_reviews(reviews_dir, smell)
-    reviews[review["id"]] = review
+    reviews[(review["id"], review.get("reviewer"))] = review
     path = reviews_dir / f"{smell}.reviews.jsonl"
     with open(path, "w", encoding="utf-8") as f:
         for r in reviews.values():
@@ -356,14 +391,23 @@ def get_smells(data_dir: Path) -> list[str]:
 
 
 def load_pairs(data_dir: Path, reviews_dir: Path, smell: str | None,
-               status: str, limit: int) -> tuple[list[dict], int, int]:
-    """Pares de `data/raw/`, com o veredito atual do sidecar anexado.
+               status: str, limit: int, reviewer: str | None = None,
+               assignment: dict | None = None,
+               adjudicar: bool = False) -> tuple[list[dict], int, int]:
+    """Pares de `data/raw/`, com o veredito do revisor atual anexado.
+
+    Revisão dupla (`assignment` + `reviewer`): mostra só os pares dos blocos do
+    revisor. Modo normal — blocos onde ele é revisor primário. Modo `adjudicar`
+    — o bloco que ele adjudica, restrito aos pares divergentes (ambos os
+    primários revisaram e discordaram).
 
     Retorna (pares_exibidos, total, total_revisados)."""
     files = (
         [data_dir / f"{smell}.jsonl"] if smell and smell != "all"
         else sorted(data_dir.glob("*.jsonl"))
     )
+    id2bloco = _id_para_bloco(assignment) if assignment else {}
+    dupla = assignment is not None and reviewer is not None
     pairs, total, reviewed = [], 0, 0
     for f in files:
         if not f.exists():
@@ -378,9 +422,20 @@ def load_pairs(data_dir: Path, reviews_dir: Path, smell: str | None,
                 p = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            total += 1
             pid = p.get("id")
-            review = reviews.get(pid) if pid else None
+            if dupla:
+                bloco = id2bloco.get(pid)
+                if bloco is None:
+                    continue
+                if adjudicar:
+                    if reviewer != bloco["adjudicator"]:
+                        continue
+                    if not _e_divergente(pid, bloco, reviews):
+                        continue
+                elif reviewer not in bloco["revisores"]:
+                    continue
+            total += 1
+            review = reviews.get((pid, reviewer)) if pid else None
             if review:
                 reviewed += 1
             if status == "pending" and review:
@@ -397,7 +452,9 @@ def load_pairs(data_dir: Path, reviews_dir: Path, smell: str | None,
 
 # ── Flask app ────────────────────────────────────────────────────────────────
 
-def create_app(data_dir: Path, reviews_dir: Path, limit: int) -> Flask:
+def create_app(data_dir: Path, reviews_dir: Path, limit: int,
+               reviewer: str | None = None, assignment: dict | None = None,
+               adjudicar: bool = False) -> Flask:
     app = Flask(__name__)
 
     @app.route("/")
@@ -405,6 +462,7 @@ def create_app(data_dir: Path, reviews_dir: Path, limit: int) -> Flask:
         return render_template_string(
             HTML, smells=get_smells(data_dir),
             data_dir=str(data_dir), reviews_dir=str(reviews_dir),
+            reviewer=reviewer, adjudicar=adjudicar,
         )
 
     @app.route("/pairs")
@@ -412,7 +470,8 @@ def create_app(data_dir: Path, reviews_dir: Path, limit: int) -> Flask:
         smell = request.args.get("smell", "all")
         status = request.args.get("status", "all")
         loaded, total, reviewed = load_pairs(
-            data_dir, reviews_dir, None if smell == "all" else smell, status, limit
+            data_dir, reviews_dir, None if smell == "all" else smell, status,
+            limit, reviewer=reviewer, assignment=assignment, adjudicar=adjudicar,
         )
         return jsonify({"pairs": loaded, "total": total, "reviewed": reviewed})
 
@@ -439,7 +498,7 @@ def create_app(data_dir: Path, reviews_dir: Path, limit: int) -> Flask:
             "before_clean": body.get("before_clean"),
             "after_clean": body.get("after_clean"),
             "out_of_rule": bool(body.get("out_of_rule")),
-            "reviewer": body.get("reviewer"),
+            "reviewer": reviewer,  # do config do app, não do cliente
             "notes": body.get("notes", ""),
             "justificativa": justificativa or None,
             "confianca": confianca,
@@ -459,16 +518,38 @@ def main():
     ap.add_argument("--limit", type=int, default=200)
     ap.add_argument("--port", type=int, default=5050)
     ap.add_argument("--no-open", action="store_true")
+    ap.add_argument("--reviewer", default=None,
+                    help="Nome do revisor (obrigatorio na revisao dupla)")
+    ap.add_argument("--assignment", default=None,
+                    help="Caminho do assignment.json (default <reviews>/assignment.json)")
+    ap.add_argument("--no-assignment", action="store_true",
+                    help="Ignora o assignment.json — modo de revisor unico")
+    ap.add_argument("--adjudicar", action="store_true",
+                    help="Modo adjudicacao: revisa os pares divergentes do bloco que voce adjudica")
     args = ap.parse_args()
 
     data_dir = Path(args.data)
     reviews_dir = Path(args.reviews)
-    app = create_app(data_dir, reviews_dir, args.limit)
+
+    assignment_path = Path(args.assignment) if args.assignment else reviews_dir / "assignment.json"
+    assignment = None if args.no_assignment else load_assignment(assignment_path)
+    if assignment is not None and not args.reviewer:
+        raise SystemExit(
+            f"{assignment_path} presente: informe --reviewer NOME (revisao dupla). "
+            f"Use --no-assignment para o modo de revisor unico."
+        )
+    if args.adjudicar and (assignment is None or not args.reviewer):
+        raise SystemExit("--adjudicar exige assignment.json e --reviewer.")
+
+    app = create_app(data_dir, reviews_dir, args.limit, reviewer=args.reviewer,
+                     assignment=assignment, adjudicar=args.adjudicar)
 
     if not args.no_open:
         Timer(1.0, lambda: webbrowser.open(f"http://localhost:{args.port}")).start()
 
-    print(f"Curador em → http://localhost:{args.port}")
+    modo = "revisor unico" if assignment is None else (
+        f"adjudicacao · {args.reviewer}" if args.adjudicar else f"revisao dupla · {args.reviewer}")
+    print(f"Curador em → http://localhost:{args.port}  ({modo})")
     print(f"Dados:    {data_dir.resolve()}")
     print(f"Vereditos: {reviews_dir.resolve()}  (sidecar)")
     print("Ctrl+C para parar\n")

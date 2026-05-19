@@ -58,41 +58,134 @@ def load_sidecar(reviews_dir: str | Path, stem: str) -> dict | None:
     return out
 
 
-def apply_verdicts(raw_records: list[dict], sidecar: dict) -> list[dict]:
-    """Aplica os vereditos do curador aos pares crus.
+def _aplicar_veredito_final(rec: dict, verdict: dict) -> dict | None:
+    """Aplica um veredito único a um par cru.
 
     - `clean`    — mantém o par como está.
-    - `noisy`    — mantém, mas reescreve before/after com o recorte
+    - `noisy`    — mantém, reescrevendo before/after com o recorte
                    `before_clean`/`after_clean` (D4: o recorte humano é o
-                   override; o detector não é re-rodado). Sem recorte utilizável
-                   → descartado.
-    - `rejected` — descartado.
-    - sem veredito (não-revisado) — descartado.
+                   override; o detector não re-roda). Sem recorte → descartado.
+    - `rejected` / status desconhecido — descartado (`None`).
     """
+    status = verdict.get("status")
+    if status == "clean":
+        return rec
+    if status == "noisy":
+        bc, ac = verdict.get("before_clean"), verdict.get("after_clean")
+        if not (bc and bc.strip() and ac and ac.strip()):
+            logger.warning("Par noisy %s sem recorte before/after_clean — descartado",
+                            rec.get("id"))
+            return None
+        return dict(rec, before_code=bc, after_code=ac)
+    return None
+
+
+def apply_verdicts(raw_records: list[dict], sidecar: dict) -> list[dict]:
+    """Aplica os vereditos do curador (revisor único) aos pares crus.
+
+    `sidecar` indexado por `id`. Pares sem veredito são descartados."""
     kept: list[dict] = []
     for rec in raw_records:
         verdict = sidecar.get(rec.get("id")) if rec.get("id") else None
         if verdict is None:
             continue  # não-revisado
-        status = verdict.get("status")
-        if status == "clean":
-            kept.append(rec)
-        elif status == "noisy":
-            bc, ac = verdict.get("before_clean"), verdict.get("after_clean")
-            if not (bc and bc.strip() and ac and ac.strip()):
-                logger.warning(
-                    "Par noisy %s sem recorte before/after_clean — descartado",
-                    rec.get("id"),
-                )
-                continue
-            kept.append(dict(rec, before_code=bc, after_code=ac))
-        # `rejected` (e qualquer status desconhecido) — descartado
+        out = _aplicar_veredito_final(rec, verdict)
+        if out is not None:
+            kept.append(out)
     return kept
+
+
+# ── Revisão dupla (D1) ───────────────────────────────────────────────────────
+
+def load_assignment(path: str | Path) -> dict | None:
+    """`assignment.json` (de `gerar_blocos.py`), ou `None` se ausente."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_sidecar_keyed(reviews_dir: str | Path, stem: str) -> dict | None:
+    """Sidecar `<stem>.reviews.jsonl` indexado por `(id, revisor)` — para a
+    revisão dupla, em que o mesmo par tem um veredito por revisor. `None` se
+    ausente. Registros legados sem `reviewer` viram chave `(id, None)`."""
+    path = Path(reviews_dir) / f"{stem}.reviews.jsonl"
+    if not path.exists():
+        return None
+    out: dict = {}
+    for rec in _load_jsonl(path):
+        if rec.get("id"):
+            out[(rec["id"], rec.get("reviewer"))] = rec
+    return out
+
+
+def merge_double_review(raw_records: list[dict], sidecar_keyed: dict,
+                        id_to_block: dict) -> list[dict]:
+    """Mescla os 2 vereditos por par (D1).
+
+    consenso `clean` → mantém; consenso `rejected` → descarta; divergência
+    (qualquer outra combinação, inclui `noisy`) → usa o veredito do adjudicador
+    se houver, senão o par fica pendente de adjudicação e é descartado do treino.
+    Pares ainda não revisados pelos 2 primários são ignorados (incompletos)."""
+    kept: list[dict] = []
+    for rec in raw_records:
+        pid = rec.get("id")
+        bloco = id_to_block.get(pid)
+        if bloco is None:
+            continue  # par não atribuído a nenhum bloco
+        r1, r2 = bloco["revisores"]
+        v1 = sidecar_keyed.get((pid, r1))
+        v2 = sidecar_keyed.get((pid, r2))
+        if v1 is None or v2 is None:
+            continue  # revisão incompleta
+        s1, s2 = v1.get("status"), v2.get("status")
+        if s1 == s2 == "clean":
+            kept.append(rec)
+            continue
+        if s1 == s2 == "rejected":
+            continue
+        # divergência → adjudicador
+        adj_v = sidecar_keyed.get((pid, bloco["adjudicator"]))
+        if adj_v is None:
+            logger.warning("Par %s divergente e sem adjudicacao — descartado", pid)
+            continue
+        out = _aplicar_veredito_final(rec, adj_v)
+        if out is not None:
+            kept.append(out)
+    return kept
+
+
+def cohen_kappa_por_bloco(sidecar_por_stem: dict, assignment: dict) -> dict:
+    """Cohen's kappa entre os 2 revisores primários, por bloco.
+
+    `sidecar_por_stem`: `{stem: {(id,revisor): rec}}`. Calculado só sobre os
+    pares que ambos os primários revisaram. Retorna `{bloco_id: kappa|None}`;
+    `None` quando indefinido (<2 pares revisados por ambos, ou rótulos todos
+    iguais — kappa não é definido nesses casos)."""
+    from sklearn.metrics import cohen_kappa_score
+
+    out: dict = {}
+    for bloco in assignment["blocos"]:
+        r1, r2 = bloco["revisores"]
+        labels1: list[str] = []
+        labels2: list[str] = []
+        for par in bloco["pares"]:
+            sc = sidecar_por_stem.get(par["smell"], {})
+            v1, v2 = sc.get((par["id"], r1)), sc.get((par["id"], r2))
+            if v1 and v2 and v1.get("status") and v2.get("status"):
+                labels1.append(v1["status"])
+                labels2.append(v2["status"])
+        if len(labels1) < 2 or len(set(labels1 + labels2)) < 2:
+            out[bloco["id"]] = None
+        else:
+            out[bloco["id"]] = float(cohen_kappa_score(labels1, labels2))
+    return out
 
 
 class DataCurator:
     def __init__(self):
         self._pairs: list[dict] = []
+        self.kappa: dict | None = None  # Cohen's kappa por bloco (revisão dupla)
 
     def read_raw(self, path: str | Path) -> "DataCurator":
         """Lê um único arquivo de pares crus (`.json`, `.jsonl` ou `.csv`)."""
@@ -117,20 +210,48 @@ class DataCurator:
         return self
 
     def read_curated(self, raw_dir: str | Path, reviews_dir: str | Path,
-                     allow_unreviewed: bool = False) -> "DataCurator":
+                     allow_unreviewed: bool = False, use_assignment: bool = True,
+                     assignment_path: str | Path | None = None) -> "DataCurator":
         """Carrega todos os `<smell>.jsonl` de `raw_dir`, aplicando os vereditos
         do curador (sidecars de `reviews_dir`).
+
+        Se houver `assignment.json` (revisão dupla), mescla os 2 vereditos por
+        par (D1) e calcula o Cohen's kappa por bloco. Sem `assignment.json`,
+        degrada para o modo de revisor único — um veredito por par.
 
         Sem sidecar para um smell → erro (fail-fast): sem curadoria, todo par é
         não-revisado e seria descartado — falhar é mais seguro para um pipeline
         de treino do que produzir um dataset vazio silenciosamente.
         `allow_unreviewed=True` desativa a checagem e usa o raw sem curadoria.
+        `use_assignment=False` ignora o `assignment.json` (força revisor único).
         """
         raw_dir, reviews_dir = Path(raw_dir), Path(reviews_dir)
         raw_files = sorted(raw_dir.glob("*.jsonl"))
         if not raw_files:
             raise FileNotFoundError(f"Nenhum arquivo .jsonl em {raw_dir}")
 
+        if assignment_path is None:
+            assignment_path = reviews_dir / "assignment.json"
+        assignment = load_assignment(assignment_path) if use_assignment else None
+
+        if assignment is not None:
+            self._read_double(raw_files, reviews_dir, assignment, allow_unreviewed)
+        else:
+            self._read_single(raw_files, reviews_dir, allow_unreviewed)
+        return self
+
+    @staticmethod
+    def _missing_sidecar_error(stem: str, reviews_dir: Path) -> FileNotFoundError:
+        return FileNotFoundError(
+            f"Sidecar de vereditos ausente para '{stem}' "
+            f"({reviews_dir}/{stem}.reviews.jsonl). Cure os pares no curador "
+            f"(filtro_smells), ou rode com --allow-unreviewed para usar o raw "
+            f"sem curadoria (NAO recomendado p/ treino)."
+        )
+
+    def _read_single(self, raw_files: list[Path], reviews_dir: Path,
+                     allow_unreviewed: bool) -> None:
+        """Modo de revisor único — um veredito por par (chave `id`)."""
         all_pairs: list[dict] = []
         for rf in raw_files:
             stem = rf.stem
@@ -138,27 +259,47 @@ class DataCurator:
             sidecar = load_sidecar(reviews_dir, stem)
             if sidecar is None:
                 if not allow_unreviewed:
-                    raise FileNotFoundError(
-                        f"Sidecar de vereditos ausente para '{stem}' "
-                        f"({reviews_dir}/{stem}.reviews.jsonl). Cure os pares no "
-                        f"curador (filtro_smells), ou rode com --allow-unreviewed "
-                        f"para usar o raw sem curadoria (NAO recomendado p/ treino)."
-                    )
-                logger.warning(
-                    "Sem sidecar para %s — usando %d pares crus (--allow-unreviewed)",
-                    stem, len(raw_records),
-                )
+                    raise self._missing_sidecar_error(stem, reviews_dir)
+                logger.warning("Sem sidecar para %s — usando %d pares crus (--allow-unreviewed)",
+                                stem, len(raw_records))
                 all_pairs.extend(raw_records)
             else:
                 kept = apply_verdicts(raw_records, sidecar)
                 logger.info("%s: %d crus -> %d apos curadoria",
                             stem, len(raw_records), len(kept))
                 all_pairs.extend(kept)
-
         self._pairs = all_pairs
-        logger.info("Total apos curadoria: %d pares de %d arquivo(s)",
+        logger.info("Total apos curadoria (revisor unico): %d pares de %d arquivo(s)",
                     len(all_pairs), len(raw_files))
-        return self
+
+    def _read_double(self, raw_files: list[Path], reviews_dir: Path,
+                     assignment: dict, allow_unreviewed: bool) -> None:
+        """Modo de revisão dupla — mescla 2 vereditos por par (D1) + kappa."""
+        id_to_block = {par["id"]: b
+                       for b in assignment["blocos"] for par in b["pares"]}
+        sidecar_por_stem: dict = {}
+        all_pairs: list[dict] = []
+        for rf in raw_files:
+            stem = rf.stem
+            raw_records = _load_jsonl(rf)
+            sk = load_sidecar_keyed(reviews_dir, stem)
+            if sk is None:
+                if not allow_unreviewed:
+                    raise self._missing_sidecar_error(stem, reviews_dir)
+                logger.warning("Sem sidecar para %s — usando %d pares crus (--allow-unreviewed)",
+                                stem, len(raw_records))
+                all_pairs.extend(raw_records)
+                sidecar_por_stem[stem] = {}
+            else:
+                sidecar_por_stem[stem] = sk
+                kept = merge_double_review(raw_records, sk, id_to_block)
+                logger.info("%s: %d crus -> %d apos revisao dupla",
+                            stem, len(raw_records), len(kept))
+                all_pairs.extend(kept)
+        self._pairs = all_pairs
+        self.kappa = cohen_kappa_por_bloco(sidecar_por_stem, assignment)
+        logger.info("Total apos revisao dupla: %d pares · Cohen's kappa por bloco: %s",
+                    len(all_pairs), self.kappa)
 
     def validate_all(self) -> tuple[list[dict], list[dict]]:
         valid: list[dict] = []
@@ -275,12 +416,15 @@ def main(argv: list[str] | None = None) -> None:
                     help="Destino do DatasetDict")
     ap.add_argument("--allow-unreviewed", action="store_true",
                     help="Usa pares sem sidecar de vereditos (NAO recomendado p/ treino)")
+    ap.add_argument("--no-assignment", action="store_true",
+                    help="Ignora o assignment.json — força o modo de revisor unico")
     ap.add_argument("--seed", type=int, default=42, help="Seed do split (default 42)")
     args = ap.parse_args(argv)
 
     curator = DataCurator()
     curator.read_curated(args.raw_dir, args.reviews_dir,
-                         allow_unreviewed=args.allow_unreviewed)
+                         allow_unreviewed=args.allow_unreviewed,
+                         use_assignment=not args.no_assignment)
     valid, invalid = curator.validate_all()
     if not valid:
         raise SystemExit("Nenhum par valido apos curadoria/validacao — nada a salvar.")
