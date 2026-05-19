@@ -17,13 +17,18 @@ def _find_unreachable(fn_source: str) -> list[dict]:
     dead = []
     for node in ast.walk(tree):
         # itera sobre listas de statements (body, orelse, handlers, etc.)
-        
+
         for stmts in [getattr(node, "body", []),
                       getattr(node, "orelse", []),
                       getattr(node, "finalbody", [])]:
-            
+
+            # F6: em `IfExp` (ternario) e `Lambda`, `body`/`orelse` sao um nó
+            # de expressao único, não uma lista de statements — pular.
+            if not isinstance(stmts, list):
+                continue
+
             terminal_seen = False
-            
+
             for stmt in stmts:
                 if terminal_seen:
                     dead.append({"type": "unreachable", "lineno": stmt.lineno})
