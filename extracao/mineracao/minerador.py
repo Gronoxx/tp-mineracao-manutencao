@@ -146,19 +146,70 @@ def extract_candidates(before_src: str, after_src: str, filename: str) -> list[d
     return candidates
 
 
+def _magnitude(res, smell_name: str) -> float:
+    """Magnitude do smell em `res` — quão "grave" é. Maior = pior.
+
+    Usado por `verify_pair` no modo permissivo (E1) para aceitar pares em
+    que o detector ainda dispara no `after` mas com magnitude bem menor —
+    captura refatorações parciais que a regra estrita "fires-before-and-NOT-after"
+    perde."""
+    ev = res.evidence or {}
+    if smell_name == "long_method":
+        return float(ev.get("lines_of_code") or ev.get("lines_fallback") or 0)
+    if smell_name == "long_param_list":
+        return float(ev.get("count", 0))
+    if smell_name == "magic_numbers":
+        return float(len(ev.get("magic_numbers", [])))
+    if smell_name == "deep_nesting":
+        return float(ev.get("max_depth", 0))
+    if smell_name == "dead_code":
+        return float(len(ev.get("dead_code", [])))
+    return 0.0
+
+
+# Redução mínima de magnitude (fração) para aceitar um par como `partial=True`
+# quando o detector continua disparando no `after`. Calibrado empiricamente
+# (sweep em pytest, 2026-05-19): 0.5 não pega nada (refactors incrementais);
+# 0.0 incorpora "não-redução" que é ruído; 0.1 captura "uma unidade de
+# melhoria" (depth 5→4, 8 magic→7, 80 LOC→70) sem ruído de zero-mudança.
+PARTIAL_REDUCTION_MIN = 0.1
+
+
 def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
                 parent_commit: str | None, commit_msg: str,
-                msg_keywords: list[str], filename: str) -> list[RefactoringPair]:
+                msg_keywords: list[str], filename: str,
+                partial_threshold: float | None = None) -> list[RefactoringPair]:
     """Estágio 3 — roda os 5 detectores; emite um RefactoringPair por smell
-    cujo detector dispara no `before` e não no `after`."""
+    cujo detector dispara no `before`.
+
+    Modo estrito (`partial_threshold=None`, default): só aceita pares cujo
+    detector dispara no `before` e NÃO dispara no `after` — sinal limpo.
+
+    Modo permissivo (E1, `partial_threshold=0.0..1.0`): ALÉM dos estritos,
+    aceita pares em que o detector ainda dispara no `after` mas com magnitude
+    reduzida em pelo menos `partial_threshold` (e.g., 0.5 = redução de 50%+).
+    Esses pares são marcados `partial=True` — sinal mais ruidoso, ideal p/
+    revisão humana (a fila do curador PR 6 está preparada pra isso)."""
     bf, af = candidate["before_fn"], candidate["after_fn"]
     records: list[RefactoringPair] = []
 
     for smell_name, detect in DETECTORS.items():
         before_res = detect(bf)
         after_res = detect(af)
-        if not (before_res.detected and not after_res.detected):
+        if not before_res.detected:
             continue
+
+        # Estrito = before dispara, after não.  Permissivo = before dispara
+        # E after também, MAS a magnitude do after é <= before * (1 - threshold).
+        is_partial = False
+        if after_res.detected:
+            if partial_threshold is None:
+                continue   # modo estrito rejeita
+            mag_b = _magnitude(before_res, smell_name)
+            mag_a = _magnitude(after_res, smell_name)
+            if mag_b <= 0 or mag_a > mag_b * (1.0 - partial_threshold):
+                continue
+            is_partial = True
 
         smell_code = NAME_TO_CODE[smell_name]
         after_code = af.source
@@ -168,6 +219,7 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
             helpers = candidate["helper_sources"]
             # F3: encurtar um Long Method sem extrair nenhum helper não é
             # Extract Method (pode ser inline, deleção etc.) — não é par R1.
+            # A regra vale também no modo permissivo.
             if not helpers:
                 continue
             long_det = DETECTORS["long_method"]
@@ -196,6 +248,7 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
             detector_after={"detected": after_res.detected,
                             "evidence": after_res.evidence},
             verified=True,
+            partial=is_partial,
             n_functions_after=n_after,
         ))
     return records
@@ -250,7 +303,8 @@ def _caps_atingidos(by_smell: dict[str, dict], caps: dict[str, int]) -> bool:
 
 def mine(repo_url: str, output_path: Path, since=None, to=None,
          max_commits: int | None = None,
-         caps: dict[str, int] | None = None) -> dict:
+         caps: dict[str, int] | None = None,
+         partial_threshold: float | None = None) -> dict:
     """Minera um repositório → mescla `<smell>.jsonl` em `output_path`.
 
     Escrita acumulativa: registros já em `output_path` (de execuções
@@ -297,6 +351,7 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
                     cand, repo=repo_url, commit_hash=commit.hash,
                     parent_commit=parent, commit_msg=commit.msg,
                     msg_keywords=keywords, filename=path,
+                    partial_threshold=partial_threshold,
                 ):
                     bucket = by_smell.setdefault(rec.smell_type, {})
                     # respeita o teto por smell desta chamada (`caps`)
