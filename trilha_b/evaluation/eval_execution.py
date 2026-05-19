@@ -135,6 +135,18 @@ def _coverage_of_target(
 
 
 # --------------------------------------------------------------- execução ----
+def _clear_pycache(directory: Path) -> None:
+    """Remove `__pycache__`/`*.pyc` sob `directory`.
+
+    Sem isso, o teste "depois" pode rodar o bytecode obsoleto do módulo: trocar
+    o arquivo não invalida o `.pyc` se o novo `mtime` não for maior que o
+    registrado no `.pyc` — e o pass rate "depois" mediria o código antigo."""
+    for cache in directory.rglob("__pycache__"):
+        shutil.rmtree(cache, ignore_errors=True)
+    for pyc in directory.rglob("*.pyc"):
+        pyc.unlink(missing_ok=True)
+
+
 def _run_pytest(
     test_cmd: str,
     project_dir: Path,
@@ -199,21 +211,27 @@ class ExecutionEvaluator:
 
         work = Path(tempfile.mkdtemp(prefix="eval_exec_"))
         try:
+            _clear_pycache(project_dir)
             total_before, passed_before, err_before, _ = _run_pytest(
                 test_cmd, project_dir, self.timeout_seconds, work_dir=work
             )
 
             backup = original_file.with_suffix(original_file.suffix + ".bak")
-            shutil.copy2(original_file, backup)
+            # copyfile (não copy2): não copia o mtime do arquivo refatorado —
+            # combinado com _clear_pycache, garante que o teste "depois" rode o
+            # código novo, não um .pyc obsoleto.
+            shutil.copyfile(original_file, backup)
             try:
-                shutil.copy2(refactored_file, original_file)
+                shutil.copyfile(refactored_file, original_file)
+                _clear_pycache(project_dir)
                 total_after, passed_after, err_after, cov_json = _run_pytest(
                     test_cmd, project_dir, self.timeout_seconds,
                     cov_target=original_file.parent, work_dir=work,
                 )
             finally:
-                shutil.copy2(backup, original_file)
+                shutil.copyfile(backup, original_file)
                 backup.unlink(missing_ok=True)
+                _clear_pycache(project_dir)
 
             exercised, coverage = None, None
             if cov_json is not None:
