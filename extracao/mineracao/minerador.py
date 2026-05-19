@@ -201,12 +201,57 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
     return records
 
 
+def _load_existing(path: Path) -> dict[str, dict]:
+    """Registros já gravados em `path` (JSONL), indexados por `id`.
+
+    Permite que `mine()` mescle a saída de vários repositórios no mesmo
+    diretório sem que um sobrescreva o outro (F1)."""
+    out: dict[str, dict] = {}
+    if not path.exists():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        rid = rec.get("id")
+        if rid:
+            out[rid] = rec
+    return out
+
+
+def _merge_write(output_path: Path, by_smell: dict[str, dict[str, dict]]) -> dict:
+    """Escreve cada `<smell>.jsonl` mesclando com o conteúdo já em disco (F1).
+
+    Padrão load → merge por `id` → write (análogo a `save_review()` do curador):
+    registros de execuções anteriores são preservados; a execução atual tem
+    precedência em caso de `id` repetido. `counts` reflete só o que ESTA
+    execução encontrou (não o total acumulado em disco)."""
+    counts: dict[str, int] = {}
+    for smell_code, recs in by_smell.items():
+        out_file = output_path / f"{CODE_TO_NAME[smell_code]}.jsonl"
+        merged = _load_existing(out_file)
+        merged.update(recs)
+        with open(out_file, "w", encoding="utf-8") as f:
+            for record in merged.values():
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        counts[smell_code] = len(recs)
+    return counts
+
+
 def mine(repo_url: str, output_path: Path, since=None, to=None,
          max_commits: int | None = None) -> dict:
-    """Minera um repositório → escreve `<smell>.jsonl` em `output_path`.
+    """Minera um repositório → mescla `<smell>.jsonl` em `output_path`.
 
-    Escrita idempotente: cada arquivo é reescrito por execução e os registros
-    são deduplicados por `id` — rodar 2× não duplica."""
+    Escrita acumulativa: registros já em `output_path` (de execuções
+    anteriores, p.ex. outros repositórios) são preservados — o merge é por
+    `id`, então chamar `mine()` para vários repositórios no mesmo diretório
+    acumula em vez de sobrescrever. Idempotente: rodar o mesmo repositório 2×
+    não duplica. O `dict` retornado conta só os pares encontrados nesta
+    chamada."""
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -243,11 +288,4 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
                 ):
                     by_smell.setdefault(rec.smell_type, {})[rec.id] = rec.model_dump()
 
-    counts = {}
-    for smell_code, recs in by_smell.items():
-        out_file = output_path / f"{CODE_TO_NAME[smell_code]}.jsonl"
-        with open(out_file, "w", encoding="utf-8") as f:
-            for record in recs.values():
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        counts[smell_code] = len(recs)
-    return counts
+    return _merge_write(output_path, by_smell)
