@@ -155,21 +155,23 @@ def load_pairs(data_dir: Path, smell: str, limit: int) -> list[dict]:
     return pairs
 
 def render(pairs: list[dict], smell: str, out_path: Path):
-    repos = len({p["repo"] for p in pairs})
+    repos = len({p.get("repo", "") for p in pairs})
     html = [HTML_HEAD.format(smell=smell, count=len(pairs), repos=repos)]
 
     for i, p in enumerate(pairs, 1):
-        repo_short = p["repo"].replace("https://github.com/", "")
-        commit_short = p["commit"][:7]
+        # Campos do schema unificado core.schema.RefactoringPair.
+        repo_short = (p.get("repo") or "").replace("https://github.com/", "")
+        commit_short = (p.get("commit_hash") or "")[:7]
+        verified = "verified" if p.get("verified") else "nao-verificado"
         html.append(f"""
 <div class="pair">
   <div class="pair-header">
     <span class="idx">#{i}</span>
-    <span class="fname">{_esc(p["name"])}</span>
-    <span class="tag">{p["smell"]}</span>
-    <span class="repo">{_esc(repo_short)} · {_esc(p["file"])} · <code>{commit_short}</code></span>
+    <span class="fname">{_esc(p.get("function_name") or "?")}</span>
+    <span class="tag">{p.get("smell_type", "?")}</span>
+    <span class="repo">{_esc(repo_short)} · {_esc(p.get("file") or "")} · <code>{commit_short}</code> · {verified}</span>
   </div>
-  {build_diff_table(p["before"], p["after"])}
+  {build_diff_table(p.get("before_code", ""), p.get("after_code", ""))}
 </div>""")
 
     html.append(HTML_FOOT)
