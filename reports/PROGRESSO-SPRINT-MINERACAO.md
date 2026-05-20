@@ -37,7 +37,7 @@
 ### Onde estamos
 
 - **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 8 ✓ (entrou na Semana 2; Dia 9 em fila)
+- **Dia do sprint**: 9 ✓ (Semana 2 em andamento; Dia 10 em fila)
 - **Semana**: 1
 - **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
@@ -56,19 +56,19 @@ Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle`
 
 ### Próxima ação concreta
 
-**Dia 9 do sprint** — C5c.4 behavioral validation amostrada:
+**Dias 10-11 do sprint** — C2 GitHub PR mining (GraphQL):
 
-1. Branch `feature/c5c4-behavioral-validation`.
-2. Função `_behavioral_check(fn1_source, fn2_source) -> bool`: usa `hypothesis` para gerar 10 inputs sintéticos, executa ambas, compara outputs.
-3. Aplicação em amostra de 50 pares cross-file, mede taxa de aprovação.
-4. Calibração: aprovação > 70% → pipeline confiável; < 50% → ajustar thresholds.
-5. PR + merge.
+1. Branch `feature/c2-pr-mining-graphql`.
+2. Script `extracao/execucao/pr_search.py` usa `gh api graphql` para enumerar PRs com `label:refactoring/cleanup/code-quality/tech-debt`. Shard por ano + label.
+3. Cache `(repo, pr_number, base_sha, head_sha)` em `data/pr_list.json`.
+4. Dia 11: integração com `mine_pr()` (do Dia 4) — para cada PR cacheado, dispara mineração.
+5. Smoke em 5 PRs conhecidos; PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 2 Dia 9`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 2 Dia 10-11`.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 8 mesclado via PR #28)
+(nenhum — Dia 9 mesclado via PR #29)
 
 ### Pendências / bloqueadores
 
@@ -211,6 +211,40 @@ Dia 8 — C5c.3 identifier overlap mitigation. Combate FP em cross-file matching
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 9 — 2026-05-20 (Dia 9 — C5c.4 behavioral validation amostrada)
+
+**Duração estimada**: ~25 min.
+**Dia do sprint**: 9 de 21.
+**Modo**: overnight / auto-mode.
+
+**Atividade**:
+- `pip install hypothesis` (6.152.9).
+- `extracao/mineracao/behavioral_check.py` (NEW): utilitário **offline** para comparar pares por amostragem de entradas.
+  - `_compile_function(src)` compila FunctionDef top-level em callable (namespace mínimo).
+  - `_with_timeout(fn, args, secs)` hard timeout via SIGALRM (UNIX).
+  - `behavioral_check(src_before, src_after, n_samples=10, timeout=0.5s)` usa `hypothesis @given` programático com estratégia `one_of(int, str, list, None)`. Compara outputs ou tipos de exceção. Retorna `BehavioralCheckResult` dataclass.
+- Design: **NUNCA usar em `mine()`** — risco de side effects de código arbitrário. Apenas validação offline.
+- `tests/test_behavioral_check.py`: 7 testes (identicas, divergentes, dead code, sem params, exceção, código inválido, dataclass).
+- PR #29 criado, mesclado via squash (commit `e9a3c32`).
+
+**Resultado**:
+- ✓ Módulo `behavioral_check` pronto para calibração formal.
+- ✓ `pytest tests/ -q` → **209 passing** (202 + 7).
+- ✓ Estratégia de input simples mas robusta: cobre função pura típica; funções com tipos complexos fica `inconclusive`.
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 10** — C2 PR search via GraphQL.
+
+**Notas**:
+- Decisão: usar `hypothesis @given` programático em vez de gerador custom — alinha com o plano e dá mais cobertura (shrinking + generation strategies prontas). Custo: 1 dep adicional.
+- Sandbox tem `__builtins__` padrão — código com `os.system` etc. ainda roda. Para repos remotos isso seria perigoso; mitigação atual é "só usar offline pós-mineração". Sandbox mais restrito (sem `__builtins__`) impediria quase tudo.
+- Calibração formal (50 pares cross-file) fica para Dia 12 mass mine #2 — universo necessário virá de lá.
 
 ---
 
