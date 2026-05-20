@@ -6,3 +6,8 @@ pytest-cov
 # C5c.2 (Dia 6-7 do sprint) — tree-edit-distance para AST similarity matching
 # (cross-file refactor pairing). Puro Python (`apted-1.0.3`).
 apted>=1.0.3
+
+# C5c.4 (Dia 9 do sprint) — property-based testing para behavioral check
+# de pares cross-file. Usado fora do pipeline `mine()` (validacao em
+# amostra; calibracao do threshold na Dia 12).
+hypothesis>=6.0
