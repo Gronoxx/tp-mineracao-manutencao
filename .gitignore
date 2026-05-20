@@ -10,8 +10,14 @@ venv/
 env/
 .env/
 ENV/
-# Dados minerados (reproduziveis — nao versionar; ver tp-es2-dataset)
-data/
+# Dados minerados (reproduziveis — nao versionar; ver tp-es2-dataset).
+# Usamos `data/**` (não `data/`) para permitir re-inclusão de subdiretórios:
+# o git não re-inclui arquivos cujo diretório-pai foi ignorado.
+data/**
+# Exceção: catálogos de oracles (held-out test) SÃO versionados — são pequenos
+# (~600 entradas, sem código) e precisam ser reprodutíveis com o repo.
+!data/test/
+!data/test/**
 
 # macOS
 .DS_Store
