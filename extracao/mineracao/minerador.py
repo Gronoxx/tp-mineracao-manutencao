@@ -321,11 +321,45 @@ def _caps_atingidos(by_smell: dict[str, dict], caps: dict[str, int]) -> bool:
     return all(len(by_smell.get(s, {})) >= n for s, n in caps.items())
 
 
+def _cross_file_pairs_for_commit(before_files: dict[str, str],
+                                 after_files: dict[str, str],
+                                 similarity_threshold: float = 0.7) -> list[dict]:
+    """Adaptador: roda `find_cross_file_candidates` e converte os pares para
+    o formato dict consumido por `verify_pair` (compatível com o output do
+    `extract_candidates` per-file).
+
+    Cada dict carrega: `function_name`, `before_fn`, `after_fn`,
+    `helper_sources` (vazio — Extract Method cross-file ainda não suportado)
+    e dois marcadores `_file_before`/`_file_after` (com prefixo underscore
+    para distinguir dos campos do candidate per-file)."""
+    from .ast_similarity import find_cross_file_candidates  # import local — apted é opcional
+    out: list[dict] = []
+    for c in find_cross_file_candidates(
+        before_files, after_files,
+        similarity_threshold=similarity_threshold,
+    ):
+        bf = _funcinfo(c["before_source"])
+        af = _funcinfo(c["after_source"])
+        if bf is None or af is None:
+            continue
+        out.append({
+            "function_name": c["function_name_after"],   # nome no after vence
+            "before_fn": bf,
+            "after_fn": af,
+            "helper_sources": [],
+            "_file_before": c["file_before"],
+            "_file_after": c["file_after"],
+            "_cross_file_similarity": c["similarity"],
+        })
+    return out
+
+
 def mine(repo_url: str, output_path: Path, since=None, to=None,
          max_commits: int | None = None,
          caps: dict[str, int] | None = None,
          partial_threshold: float | None = None,
-         require_keyword: bool = True) -> dict:
+         require_keyword: bool = True,
+         cross_file_threshold: float | None = None) -> dict:
     """Minera um repositório → mescla `<smell>.jsonl` em `output_path`.
 
     Escrita acumulativa: registros já em `output_path` (de execuções
@@ -343,7 +377,14 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
     `require_keyword` (C5b — Dia 4 do sprint): quando `True` (default), pula
     commits cuja mensagem não casa nenhuma `SMELL_KEYWORDS` (pré-filtro de
     recall). Quando `False`, processa TODO commit — útil para mineração mais
-    agressiva em janelas curtas, ao custo de mais commits varridos."""
+    agressiva em janelas curtas, ao custo de mais commits varridos.
+
+    `cross_file_threshold` (C5c.2 — Dia 6-7 do sprint): quando `None` (default,
+    comportamento prévio), apenas pares per-file via `extract_candidates`.
+    Quando float em (0, 1], ATIVA matching cross-file via AST similarity
+    (APTED, ver `extracao.mineracao.ast_similarity`): funções que somem em
+    um arquivo e aparecem em OUTRO com similaridade ≥ threshold viram
+    candidatos extras. Sugestão: 0.7 (calibração será feita no Dia 12)."""
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -364,10 +405,20 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
         scanned += 1
         parent = commit.parents[0] if commit.parents else None
 
+        # Coleta before/after de TODOS os .py do commit — usado tanto pelo
+        # caminho per-file quanto pelo cross-file (quando ativado).
+        before_files: dict[str, str] = {}
+        after_files: dict[str, str] = {}
+
         for mf in commit.modified_files:
             path = mf.new_path or mf.old_path or mf.filename or ""
             if not path.endswith(".py") or _is_test_path(path):
                 continue
+            if mf.source_code_before is not None:
+                before_files[mf.old_path or path] = mf.source_code_before
+            if mf.source_code is not None:
+                after_files[mf.new_path or path] = mf.source_code
+
             if mf.source_code_before is None or mf.source_code is None:
                 continue
 
@@ -381,6 +432,24 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
                 ):
                     bucket = by_smell.setdefault(rec.smell_type, {})
                     # respeita o teto por smell desta chamada (`caps`)
+                    if (caps is not None and rec.id not in bucket
+                            and len(bucket) >= caps.get(rec.smell_type, float("inf"))):
+                        continue
+                    bucket[rec.id] = rec.model_dump()
+
+        if cross_file_threshold is not None:
+            for cand_record in _cross_file_pairs_for_commit(
+                before_files, after_files,
+                similarity_threshold=cross_file_threshold,
+            ):
+                for rec in verify_pair(
+                    cand_record, repo=repo_url, commit_hash=commit.hash,
+                    parent_commit=parent, commit_msg=commit.msg,
+                    msg_keywords=keywords,
+                    filename=cand_record["_file_after"],
+                    partial_threshold=partial_threshold,
+                ):
+                    bucket = by_smell.setdefault(rec.smell_type, {})
                     if (caps is not None and rec.id not in bucket
                             and len(bucket) >= caps.get(rec.smell_type, float("inf"))):
                         continue
