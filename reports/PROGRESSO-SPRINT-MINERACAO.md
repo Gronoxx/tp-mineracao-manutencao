@@ -37,7 +37,7 @@
 ### Onde estamos
 
 - **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 7 ✓ (Semana 1 COMPLETA; Semana 2 em fila)
+- **Dia do sprint**: 8 ✓ (entrou na Semana 2; Dia 9 em fila)
 - **Semana**: 1
 - **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
@@ -56,19 +56,19 @@ Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle`
 
 ### Próxima ação concreta
 
-**Dia 8 do sprint (início da Semana 2)** — C5c.3 identifier overlap mitigation:
+**Dia 9 do sprint** — C5c.4 behavioral validation amostrada:
 
-1. Branch `feature/c5c3-identifier-overlap`.
-2. Função `_identifier_overlap(fn1_source, fn2_source) -> float`: extrai nomes de variáveis livres + funções chamadas; computa Jaccard.
-3. Em `extract_candidates` modo cross-file: rejeita par com overlap < 0.5 (mesmo com AST similarity > 0.7). Combate FP em funções estruturalmente similares mas semanticamente diferentes.
-4. Testes com pares positive/negative.
+1. Branch `feature/c5c4-behavioral-validation`.
+2. Função `_behavioral_check(fn1_source, fn2_source) -> bool`: usa `hypothesis` para gerar 10 inputs sintéticos, executa ambas, compara outputs.
+3. Aplicação em amostra de 50 pares cross-file, mede taxa de aprovação.
+4. Calibração: aprovação > 70% → pipeline confiável; < 50% → ajustar thresholds.
 5. PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 2 Dia 8`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 2 Dia 9`.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 6-7 mesclado via PR #27)
+(nenhum — Dia 8 mesclado via PR #28)
 
 ### Pendências / bloqueadores
 
@@ -211,6 +211,37 @@ Dia 8 — C5c.3 identifier overlap mitigation. Combate FP em cross-file matching
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 8 — 2026-05-20 (Dia 8 — C5c.3 identifier overlap mitigation)
+
+**Duração estimada**: ~20 min.
+**Dia do sprint**: 8 de 21 (início Semana 2).
+**Modo**: overnight / auto-mode.
+
+**Atividade**:
+- `extracao/mineracao/ast_similarity.py`: adicionados `_identifiers_of()` e `identifier_overlap(src1, src2)`. Set de `ast.Name` + `ast.Attribute.attr` por função, Jaccard sobre os sets.
+- `find_cross_file_candidates` ganha `identifier_overlap_threshold` (default 0.0). Quando > 0, rejeita pares com Jaccard abaixo do threshold APÓS o filtro AST similarity.
+- `mine()` ganha `identifier_overlap_threshold`. Propagação via `_cross_file_pairs_for_commit`.
+- `tests/test_identifier_overlap.py`: 10 testes (5x identifier_overlap puro, 3x find_cross_file_candidates, 2x mine() smoke). Cenário-alvo validado: `_validate_input` HTTP vs DB → AST sim=1.0, identifier_overlap=0.0 → rejeitado com threshold 0.5.
+- PR #28 criado, mesclado via squash (commit `1214030`).
+
+**Resultado**:
+- ✓ Pipeline cross-file agora tem 2 filtros: AST similarity (forma) + identifier Jaccard (vocabulário). Combate FP "duas formas iguais em domínios diferentes".
+- ✓ `pytest tests/ -q` → **202 passing** (192 + 10).
+- ✓ Default 0.0 preserva comportamento — flag opt-in.
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 9** — C5c.4 behavioral validation amostrada (hypothesis lib).
+
+**Notas**:
+- Decisão: `_identifiers_of` NÃO inclui o nome do FunctionDef em si (parser não vê `FunctionDef.name` como `ast.Name`). Para FPs onde só o nome bate (`_validate_input` em ambos), a interseção fica baseada nos identificadores DENTRO do corpo — semanticamente correto.
+- Tradeoff: o Jaccard ignora a frequência (uma palavra usada 10× conta igual a uma usada 1×). Para refatorações que mantêm vocabulário mas redistribuem uso, o overlap continua alto — comportamento desejável.
+- Calibração formal do threshold (0.5 sugerido) fica para Dia 12 mass mine #2.
 
 ---
 
