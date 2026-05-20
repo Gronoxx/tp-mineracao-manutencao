@@ -37,7 +37,7 @@
 ### Onde estamos
 
 - **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 1 ✓ (Dia 2 em fila)
+- **Dia do sprint**: 2 ✓ (Dia 3 em fila)
 - **Semana**: 1
 - **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
@@ -56,24 +56,24 @@
 
 ### Próxima ação concreta
 
-**Dia 2 do sprint** — C3 ingestão de oracles (PyRef + Sourcery → `data/test/`):
+**Dia 3 do sprint** — C3 adjacent mining:
 
-1. Branch `feature/c3-ingestao-oracles`.
-2. Pull PyRef CSV → adapter → `data/test/oracle_pyref_test.jsonl`.
-3. Pull Sourcery examples → adapter → `data/test/oracle_sourcery_test.jsonl`.
-4. Adicionar exceção em `.gitignore` (`!data/test/`).
-5. Testes de carregamento em `tests/test_oracle_ingest.py`.
+1. Branch `feature/c3-adjacent-mining`.
+2. Script lê `data/test/oracle_pyref_test.jsonl`, extrai `commit_hash` por entrada.
+3. Para cada commit, roda `mine()` com `partial_threshold=0.1` em janela curta.
+4. Marca `source="adjacent_oracle"` nos pares gerados; mescla em `data/raw/` (dedup via id hash).
+5. Análise: quantos pares adicionados, distribuição por smell.
 6. PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 2`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 3`.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 1 mesclado via PR #22)
+(nenhum — Dia 2 mesclado via PR #23)
 
 ### Pendências / bloqueadores
 
-- **Email aos autores do ActRef** (arXiv 2505.06553) pedindo replication package — **ação humana do Gustavo**, não bloqueia o Dia 2 (PyRef + Sourcery são suficientes para começar).
+- **Email aos autores do ActRef** (arXiv 2505.06553) — pendência humana do Gustavo, não bloqueia.
 
 ---
 
@@ -151,6 +151,44 @@ Fontes: 35 repos minerados com sucesso (hypothesis falhou no clone por falta de 
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 3 — 2026-05-20 (Dia 2 — C3 ingestão oracles)
+
+**Duração estimada**: ~40 min.
+**Dia do sprint**: 2 de 21.
+**Modo**: overnight / auto-mode.
+
+**Atividade**:
+- Investigação das fontes: PyRef CSV (573 linhas, só metadata — sem código) e Sourcery examples (refactorings/basic_examples.py + extract_examples.py — só "before").
+- Decisão de escopo (auto-mode, sem replanejar): em vez de clonar ~25 repos para extrair before/after overnight (risco operacional), criar `OracleEntry` como modelo metadata-only. A extração de código real fica para Dia 3 (adjacent mining), que já é o passo seguinte do plano.
+- `core/oracle.py`: novo modelo `OracleEntry` (Pydantic BaseModel) — fields: source_dataset, external_refactoring_type, validation, repo, commit_hash, file, function_name, smell_type, description, tool, notes.
+- `scripts/ingest_oracles.py`: adapter PyRef CSV + Sourcery .py → OracleEntry. Mapeia "Extract Method"/"Inline Method" → R1; demais → None (catálogo bibliográfico).
+- `.gitignore`: padrão alterado de `data/` para `data/**` + exceções `!data/test/`, `!data/test/**` (git não re-inclui se pai está ignorado).
+- Geração do catálogo: 573 PyRef + 10 Sourcery = 583 entradas em `data/test/`.
+- `tests/test_oracle_ingest.py`: 12 testes (schema OracleEntry, parsers de URL/description, ingestão end-to-end com fixtures temporárias, sanity check do catálogo real).
+- PR #23 criado, mesclado via squash, main sincronizada (commit `d624221`).
+
+**Resultado**:
+- ✓ Catálogo de oracles versionado em `data/test/`.
+- ✓ **573 entradas PyRef** (451 TP, 114 FP, 8 CTP) — **25 entradas R1+TP** (material primário para teste held-out de R1).
+- ✓ **10 entradas Sourcery** (catálogo bibliográfico, smell_type=None).
+- ✓ `.gitignore` permite versionar `data/test/`, mantém `data/raw/` ignorado.
+- ✓ `pytest tests/ -q` → **155 passing** (143 + 12).
+- ✓ PR #23 mesclado.
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 3** — C3 adjacent mining. Branch `feature/c3-adjacent-mining`. Ler `data/test/oracle_pyref_test.jsonl`, extrair `commit_hash`, rodar `mine()` em cada commit (partial_threshold=0.1), marcar `source="adjacent_oracle"`, mesclar em `data/raw/`.
+
+**Notas**:
+- PyRef CSV não tem código (só commit URL + tipo). Plano literal pediu "PyRef CSV → schema RefactoringPair" mas isso é incompatível com o schema (before/after são required, non-empty). OracleEntry como modelo separado é a solução limpa.
+- Mapeamento PyRef → smells é parcial: só Extract Method (R1) tem correspondente direto. R2-R5 ficam sem entrada direta de PyRef; outros oracles (Sourcery, ActRef, SWE-Refactor) podem preencher esse gap.
+- Sourcery examples são *demos* (input only). Para virar oracle de teste, precisaria executar Sourcery → fora de escopo overnight.
+- gh CLI continua exigindo `git branch --set-upstream-to` após push via URL-com-token. Workaround confirmado.
 
 ---
 
