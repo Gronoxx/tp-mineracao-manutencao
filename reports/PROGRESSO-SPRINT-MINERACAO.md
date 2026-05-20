@@ -37,39 +37,39 @@
 ### Onde estamos
 
 - **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 2 ✓ (Dia 3 em fila)
+- **Dia do sprint**: 3 ✓ (Dia 4 em fila)
 - **Semana**: 1
 - **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
 ### Yield atual por smell
 
-(Da mineração de produção do dia 19, ANTES das ações do sprint começarem)
+Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle` em `data/raw/`.
 
-| Smell | Estritos | Parciais | Total | Min viável | % do min | Status |
+| Smell | mined_commit | adjacent_oracle | Total | Min viável | % do min | Status |
 |---|---:|---:|---:|---:|---:|---|
-| R1 Extract Method | 17 | 24 | 41 | 800 | 5% | ✗ |
-| R2 Parameter Object | 26 | 27 | 53 | 600 (140 c/ r=8 attn) | 9% (38%) | ✗ |
-| R3 Named Constant | 73 | 56 | 129 | 200 | 64% | borderline |
-| R4 Guard Clauses | 95 | 32 | 127 | 400 | 32% | ✗ |
-| R5 Remove Dead Code | 47 | 3 | 50 | 300 | 17% | ✗ |
-| **Total** | **258** | **142** | **400** | | | |
+| R1 Extract Method | 41 | 1 | 42 | 800 | 5% | ✗ |
+| R2 Parameter Object | 53 | 7 | 60 | 600 (140 c/ r=8 attn) | 10% (43%) | ✗ |
+| R3 Named Constant | 129 | 12 | 141 | 200 | 70% | borderline ↑ |
+| R4 Guard Clauses | 127 | 4 | 131 | 400 | 33% | ✗ |
+| R5 Remove Dead Code | 50 | 1 | 51 | 300 | 17% | ✗ |
+| **Total** | **400** | **25** | **425** | | | |
 
 ### Próxima ação concreta
 
-**Dia 3 do sprint** — C3 adjacent mining:
+**Dia 4 do sprint** — C5a (mine_pr) + C5b (drop keyword flag):
 
-1. Branch `feature/c3-adjacent-mining`.
-2. Script lê `data/test/oracle_pyref_test.jsonl`, extrai `commit_hash` por entrada.
-3. Para cada commit, roda `mine()` com `partial_threshold=0.1` em janela curta.
-4. Marca `source="adjacent_oracle"` nos pares gerados; mescla em `data/raw/` (dedup via id hash).
-5. Análise: quantos pares adicionados, distribuição por smell.
+1. Branch `feature/c5a-multicommit-c5b-drop-keyword`.
+2. Em `mine()`: adicionar flag `require_keyword: bool = True`; quando `False`, pula `matched_keywords()`.
+3. Nova função `mine_pr(repo_url, output_path, pr_number, ...)`: clona o repo, descobre merge commit do PR, faz diff base..head, processa como batch único.
+4. Testes em `tests/test_minerador_pr_mode.py`.
+5. Smoke em 3 repos pequenos (flask, click, requests) — sem keyword filter, ver yield delta.
 6. PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 3`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 4`.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 2 mesclado via PR #23)
+(nenhum — Dia 3 mesclado via PR #24)
 
 ### Pendências / bloqueadores
 
@@ -151,6 +151,38 @@ Fontes: 35 repos minerados com sucesso (hypothesis falhou no clone por falta de 
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 4 — 2026-05-20 (Dia 3 — C3 adjacent mining)
+
+**Duração estimada**: ~50 min (incluindo execução do mining em background).
+**Dia do sprint**: 3 de 21.
+**Modo**: overnight / auto-mode.
+
+**Atividade**:
+- `extracao/mineracao/minerador.py`: adicionado kw `source="mined_commit"` em `verify_pair()` (passthrough → `RefactoringPair.source`). Nova função `mine_specific_commits(repo_url, output_path, commit_hashes, partial_threshold=0.1, source="adjacent_oracle", clone_repo_to=None)` que usa `only_commits` do PyDriller e BYPASSA o filtro de keyword.
+- `scripts/c3_adjacent_mining.py`: lê `data/test/oracle_pyref_test.jsonl`, agrupa por repo (3 únicos), dispara `mine_specific_commits` em cada um com cache de clones em `/tmp/c3_adjacent_clones/`.
+- `tests/test_mine_specific_commits.py`: 6 testes (bypass keyword, source tag default, source customizável, lista vazia, filtro por hash, idempotência).
+- Execução em background: 3 repos, 234 commits únicos, 44s total. 25 pares produzidos (R1=1, R2=7, R3=12, R4=4, R5=1).
+- PR #24 criado, mesclado via squash, main sincronizada (commit `9c3dee7`).
+
+**Resultado**:
+- ✓ `data/raw/` passou de 400 → 425 pares.
+- ✓ Source tags propagadas: 400 mined_commit + 25 adjacent_oracle (todos os 5 arquivos jsonl consistentes).
+- ✓ `pytest tests/ -q` → **161 passing** (155 + 6).
+- ✓ Função `mine_specific_commits` reutilizável para fontes futuras (ActRef, SWE-Refactor).
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 4** — C5a (mine_pr) + C5b (drop keyword flag em `mine()`).
+
+**Notas**:
+- Yield observado (+25) ficou abaixo da estimativa do plano (+50-150). Razão provável: PyRef catalogou só 3 repos relativamente pequenos/médios. Mesmo com `partial_threshold=0.1` (modo permissivo), a maioria dos commits PyRef dispara em poucos pares.
+- Decisão de design: bypassar o filtro de keyword no caminho `adjacent` foi uma escolha consciente — esses commits já são refatorações validadas; aplicar keyword filter perderia commits que PyRef validou. (Aprendizado: a função keyword é pré-filtro de recall para mineração CEGA, não rótulo.)
+- `mine_specific_commits` é genérica em `source`: aceita qualquer das 4 tags do schema. Reaproveitável quando ActRef/SWE-Refactor chegarem.
 
 ---
 
