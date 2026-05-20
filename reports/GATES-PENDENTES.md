@@ -75,19 +75,27 @@ truth, OU inspeção manual de ~50 pares.
 
 **Como rodar:**
 
-```bash
-# 1. Produzir pares cross-file no mass mine #2 com threshold relaxado
-python3 extracao/execucao/mineracao.py --cross-file-threshold 0.5
+> ⚠️ **NOTA**: `extracao/execucao/mineracao.py` é o runner de produção mas
+> NÃO tem CLI parser (REPOS hardcoded). Para rodar `mine()` com
+> `cross_file_threshold`, use a API Python direta OU estenda o runner
+> com argparse (PR pequeno, ~15 linhas).
 
-# 2. Para cada threshold candidato, filtrar os pares acima dele
-#    e rodar behavioral check
-for T in 0.5 0.6 0.7 0.8 0.9; do
-    # script que filtra + roda behavioral_check em 50 amostras
-    python3 scripts/calibrate_cross_file.py --threshold $T
-done
+```python
+# 1. Produzir pares cross-file num mass mine separado (e.g., 3 repos pequenos)
+from extracao.mineracao.minerador import mine
+from pathlib import Path
+for repo in ["flask", "click", "requests"]:
+    mine(repo_url=f"https://github.com/pallets/{repo}",
+         output_path=Path("data/raw_calibration"),
+         cross_file_threshold=0.5)  # threshold permissivo p/ ter universo
+
+# 2. Filtrar os pares com source="cross_file" (D5 do sprint)
+python3 scripts/quality_check_pairs.py \
+    --raw-dir data/raw_calibration --source cross_file --verbose
+
+# 3. Para cada threshold candidato, filtrar + rodar behavioral check
+#    (Script calibrate_cross_file.py ainda NÃO existe — criar quando rodar.)
 ```
-
-(Script `calibrate_cross_file.py` ainda NÃO existe — criar quando for rodar.)
 
 **Critério de pass do plano:** escolher o menor threshold com precision > 0.7
 (plano §4 Dia 6-7 item 6).
@@ -96,6 +104,15 @@ done
 G1 + G2 passarem**. O `cross_file_threshold` no mass mine #2 deve ficar
 inicialmente em `None` (desligado). Após G1 passar, ativar com o threshold
 calibrado num mass mine #3.
+
+---
+
+### Pré-requisito do G1 (já resolvido na Sessão 11)
+
+Pares cross-file recebem `source="cross_file"` (Literal estendido no schema).
+Antes desta correção, pares cross-file ficavam indistinguíveis dos per-file
+(`source="mined_commit"` em ambos) — não havia como filtrá-los para
+calibração. Schema corrigido + propagação em `mine()` ajustada.
 
 ---
 
@@ -135,16 +152,24 @@ confiável. < 50% → ajustar thresholds (volta para G1).
 
 **Como rodar:**
 
-```bash
-# Depende de mass mine #2 produzir pares cross-file primeiro
-python3 scripts/calibrate_cross_file.py \
-    --source cross_file --sample 50 --behavioral
+```python
+# 1. Rodar mass mine separado (não o #2) com cross-file ativado
+#    em 3-5 repos pequenos
+from extracao.mineracao.minerador import mine
+from pathlib import Path
+for repo in ["flask", "click", "requests"]:
+    mine(repo_url=f"https://github.com/pallets/{repo}",
+         output_path=Path("data/raw_calibration"),
+         cross_file_threshold=0.5)
+
+# 2. Carregar pares com source="cross_file" e amostrar 50
+# 3. Rodar behavioral_check em cada um
+from extracao.mineracao.behavioral_check import behavioral_check
+# ... (script calibrate_cross_file.py a criar)
 ```
 
-**Dependência:** mass mine #2 com cross-file ativado.
-Como decisão de G1 é manter cross-file DESLIGADO no mass mine #2,
-**G2 pode rodar em uma rodada separada de mineração só pra calibração**
-(e.g., mass mine de 5 repos pequenos só com cross-file ativado, threshold 0.5).
+**Dependência:** rodada separada de mineração só pra calibração — NÃO o
+mass mine #2 de produção (que mantém cross-file DESLIGADO conforme G1).
 
 ---
 
