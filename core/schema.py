@@ -71,6 +71,7 @@ class RefactoringPair(BaseModel):
         "mined_pr",         # nosso pipeline em PR colapsado (C2)
         "adjacent_oracle",  # nosso pipeline em commit citado por oracle (C3)
         "translated_java",  # tradução de SWE-Refactor/MaRV (C4)
+        "cross_file",       # pareamento cross-file via AST similarity (C5c.2)
     ]] = "mined_commit"
 
     # --- preenchido pelo curador (estágio 4) ---

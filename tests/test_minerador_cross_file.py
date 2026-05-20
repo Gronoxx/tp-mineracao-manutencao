@@ -118,6 +118,9 @@ def test_mine_com_cross_file_captura_o_par_movido(
     assert pairs and pairs[0]["function_name"] == "foo"
     # filename aponta para o destino (models.py) — onde a função existe no after.
     assert pairs[0]["file"] == "models.py"
+    # Pareamento cross-file recebe source="cross_file" (não mined_commit),
+    # permitindo filtrar/calibrar este caminho separadamente no Dia 12.
+    assert pairs[0]["source"] == "cross_file"
 
 
 def test_mine_cross_file_threshold_apertado_descarta(

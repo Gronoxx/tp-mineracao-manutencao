@@ -56,10 +56,11 @@ def test_source_default_e_mined_commit():
 
 
 def test_source_aceita_outros_valores():
-    """Os 4 valores válidos correspondem aos Caminhos do sprint: commit
+    """Os 5 valores válidos correspondem aos Caminhos do sprint: commit
     individual, PR colapsado (C2), commit adjacente a oracle (C3),
-    tradução Java→Python (C4)."""
-    for value in ("mined_commit", "mined_pr", "adjacent_oracle", "translated_java"):
+    tradução Java→Python (C4), pareamento cross-file (C5c.2)."""
+    for value in ("mined_commit", "mined_pr", "adjacent_oracle",
+                  "translated_java", "cross_file"):
         p = RefactoringPair(smell_type="R1", source=value, **_BASE)
         assert p.source == value
 

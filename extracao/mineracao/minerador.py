@@ -460,6 +460,7 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
                     msg_keywords=keywords,
                     filename=cand_record["_file_after"],
                     partial_threshold=partial_threshold,
+                    source="cross_file",
                 ):
                     bucket = by_smell.setdefault(rec.smell_type, {})
                     if (caps is not None and rec.id not in bucket
