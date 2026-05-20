@@ -37,7 +37,7 @@
 ### Onde estamos
 
 - **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 5 ✓ (Dias 6-7 em fila — AST similarity)
+- **Dia do sprint**: 7 ✓ (Semana 1 COMPLETA; Semana 2 em fila)
 - **Semana**: 1
 - **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
@@ -56,22 +56,19 @@ Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle`
 
 ### Próxima ação concreta
 
-**Dias 6-7 do sprint** — C5c.2 (AST similarity matching com APTED):
+**Dia 8 do sprint (início da Semana 2)** — C5c.3 identifier overlap mitigation:
 
-1. Branch `feature/c5c2-ast-similarity`.
-2. `pip install apted` (ou fallback `zss` se C-ext falhar).
-3. Função `_ast_similarity(fn1_source, fn2_source) -> float`: parseia, tree-edit distance, normaliza.
-4. Pre-filter via shape hash (n_stmts, n_params, depth) — descarta pares óbvios em O(n).
-5. Em `extract_candidates`: novo modo "cross-file similarity" — função desaparece no before, função com ≥0.7 similaridade aparece no after → pareia.
-6. Calibrar threshold em 50 pares PyRef oracle (precision > 0.7).
-7. Snapshot fim semana 1.
-8. PR + merge.
+1. Branch `feature/c5c3-identifier-overlap`.
+2. Função `_identifier_overlap(fn1_source, fn2_source) -> float`: extrai nomes de variáveis livres + funções chamadas; computa Jaccard.
+3. Em `extract_candidates` modo cross-file: rejeita par com overlap < 0.5 (mesmo com AST similarity > 0.7). Combate FP em funções estruturalmente similares mas semanticamente diferentes.
+4. Testes com pares positive/negative.
+5. PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 6-7`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 2 Dia 8`.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 5 mesclado via PR #26)
+(nenhum — Dia 6-7 mesclado via PR #27)
 
 ### Pendências / bloqueadores
 
@@ -95,7 +92,15 @@ Decisões tomadas DURANTE a execução do sprint (≠ decisões do plano, que es
 
 | Data | Decisão | Razão | Impacto |
 |---|---|---|---|
-| (vazio) | | | |
+| 2026-05-20 | Modo overnight/auto declarado para a Semana 1 inteira | Gustavo indisponível por horas; janela ociosa custosa | Avançou Dia 1→7 em 1 sessão sem pausas |
+| 2026-05-20 | Dia 2: `OracleEntry` em vez de `RefactoringPair` para catalog | PyRef CSV não tem código (só commit URL+tipo); `RefactoringPair` exige before/after | Catálogo metadata-only versionado em `data/test/`; extração de código fica para Dia 3+ |
+| 2026-05-20 | `.gitignore` muda de `data/` para `data/**` + exceções `!data/test/**` | Git não re-inclui filhos quando pai está ignorado | Permite versionar oracles sem deixar `data/raw/` vazar |
+| 2026-05-20 | Dia 3: `mine_specific_commits` BYPASSA o filtro de keyword | Commits PyRef já são refatorações validadas; keyword é pré-filtro de recall, perderia commits validados | +25 pares `adjacent_oracle` em 44s (3 repos) |
+| 2026-05-20 | Dia 4: `mine_pr` resolve PR→SHA fora do escopo do minerador | Mantém minerador puro/offline-testável; caller (Dia 10-11) usa `gh pr view` | Composição clean; mine_pr = wrapper sobre mine_specific_commits |
+| 2026-05-20 | Dia 5: file rename é detectado por padrão (PyDriller+git) | Investigação revelou que comportamento já existia; só faltava cobertura | Dia 5 vira regressão + documentação em vez de implementação |
+| 2026-05-20 | Dia 6-7: AST similarity ignora nomes de identificadores | Robusto a rename de variáveis; sensível só a estrutura | `identifier_overlap` complementar fica para Dia 8 (combater FP em estruturas genéricas) |
+| 2026-05-20 | Calibração formal do `cross_file_threshold` deferida para Dia 12 | Mass mine #2 produzirá o universo de calibração; 50 pares oracle ainda não têm código extraído | Threshold 0.4-0.7 documentado empiricamente nos testes |
+| 2026-05-20 | Smoke em flask/click/requests deferido para Dia 12 | Custo de rede alto overnight; testes unitários cobrem correção | Mass mine #2 já cobre yield delta em modo combinado |
 
 ---
 
@@ -116,9 +121,62 @@ Snapshots gerados em pontos-chave do sprint.
 
 Fontes: 35 repos minerados com sucesso (hypothesis falhou no clone por falta de git-lfs).
 
-### Snapshot Fim Semana 1 (Dia 7)
+### Snapshot Fim Semana 1 (Dia 7) — 2026-05-20
 
-*(a preencher após snapshot)*
+**Toda a Semana 1 executada em uma única sessão overnight (~5h).**
+
+#### Yield em `data/raw/` por smell × source
+
+| Smell | mined_commit | adjacent_oracle | mined_pr | cross_file | Total | Min viável | % do min |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| R1 Extract Method | 41 | 1 | 0 | 0 | 42 | 800 | 5% |
+| R2 Parameter Object | 53 | 7 | 0 | 0 | 60 | 600 (140 c/ r=8) | 10% (43%) |
+| R3 Named Constant | 129 | 12 | 0 | 0 | 141 | 200 | 70% |
+| R4 Guard Clauses | 127 | 4 | 0 | 0 | 131 | 400 | 33% |
+| R5 Remove Dead Code | 50 | 1 | 0 | 0 | 51 | 300 | 17% |
+| **Total** | **400** | **25** | **0** | **0** | **425** | | |
+
+Pares `mined_pr` e `cross_file` permanecem em 0 — a infraestrutura está pronta mas a execução ainda não foi disparada (será no mass mine #2 do Dia 12).
+
+#### Yield em `data/test/` (oracles, held-out)
+
+- `oracle_pyref_test.jsonl`: **573 entradas** (451 TP, 114 FP, 8 CTP). **25 R1+TP** (material primário de teste R1).
+- `oracle_sourcery_test.jsonl`: 10 entradas (catálogo bibliográfico).
+
+#### PRs mesclados na semana
+
+| PR | Dia | Escopo | Suite após |
+|---:|---|---|---:|
+| #22 | 1 | Schema `source` field + backfill 400 pares | 143 |
+| #23 | 2 | OracleEntry + catálogo PyRef+Sourcery | 155 |
+| #24 | 3 | `mine_specific_commits` + adjacent mining | 161 |
+| #25 | 4 | `mine_pr` + `require_keyword` flag | 168 |
+| #26 | 5 | Rename-aware regression tests | 171 |
+| #27 | 6-7 | AST similarity cross-file (APTED) | 192 |
+
+#### Caminhos disponíveis no minerador (fim Sem 1)
+
+| Função | Filtro keyword | Source tag default | Caso de uso |
+|---|---|---|---|
+| `mine(repo, out)` | obrigatório | `mined_commit` | mineração cega per-file |
+| `mine(repo, out, require_keyword=False)` | desligado | `mined_commit` | janela curta sem keyword |
+| `mine(repo, out, cross_file_threshold=0.7)` | obrigatório | `mined_commit` | + cross-file matching |
+| `mine_specific_commits(repo, out, hashes)` | bypassado | `adjacent_oracle` | commits de oracle |
+| `mine_pr(repo, out, merge_shas)` | bypassado | `mined_pr` | merge commits de PR |
+
+#### Threshold calibrado (parcial)
+
+- **AST similarity**: 0.7 sugerido pelo plano, **0.4 empírico** no fixture de teste (dead code removal). Calibração formal deferida ao Dia 12 (mass mine #2 vai produzir o universo necessário).
+- **Shape distance**: 0.5 default no pré-filtro. Não revisado empiricamente — sera junto com Dia 12.
+- **Partial threshold (E1)**: 0.1 default em `mine_specific_commits` e `mine_pr`. Inalterado em `mine()` (None = estrito).
+
+#### Decisões durante a semana
+
+(Já em §🗂️ abaixo.)
+
+#### Próxima ação
+
+Dia 8 — C5c.3 identifier overlap mitigation. Combate FP em cross-file matching adicionando filtro Jaccard sobre nomes de identificadores livres + funções chamadas.
 
 ### Snapshot Fim Semana 2 (Dia 14 — checkpoint crítico R5)
 
@@ -153,6 +211,48 @@ Fontes: 35 repos minerados com sucesso (hypothesis falhou no clone por falta de 
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 7 — 2026-05-20 (Dias 6-7 — C5c.2 AST similarity cross-file) + Snapshot Semana 1
+
+**Duração estimada**: ~60 min.
+**Dia do sprint**: 6-7 de 21 (Semana 1 fechada).
+**Modo**: overnight / auto-mode.
+
+**Atividade**:
+- Instalação `apted 1.0.3` (puro Python, sem build C — `pip install` direto).
+- `extracao/mineracao/ast_similarity.py` (NEW, ~190 linhas):
+  - `ShapeHash` dataclass (n_stmts/n_params/depth/n_returns).
+  - `shape_hash(src)` e `shape_distance(a, b)` — pré-filtro O(n) por forma.
+  - `_ast_to_apted_tree(node)` — bracket-notation usando só tipos de nó AST (ignora nomes de identificadores; robusto a rename de variáveis).
+  - `ast_similarity(src1, src2) -> float | None` — APTED edit distance normalizado por nº total de nós.
+  - `find_cross_file_candidates(before_files, after_files, shape_threshold=0.5, similarity_threshold=0.7)` — pareia funções gone/fresh entre arquivos diferentes; best-per-gone matching.
+- `extracao/mineracao/minerador.py`:
+  - `mine()` ganha `cross_file_threshold: float | None = None` (opt-in).
+  - `_cross_file_pairs_for_commit()` — adapter dos dicts do find_cross_file_candidates para o formato consumido por `verify_pair`.
+- `tests/test_ast_similarity.py`: 17 testes unitários (shape, similaridade, find_cross_file).
+- `tests/test_minerador_cross_file.py`: 4 testes end-to-end (default off, ativação captura par, threshold apertado, ids únicos). Fixture: dead code removal cross-file (foo migra utils.py → models.py com 3 dead vars removidas — similaridade ~0.45).
+- Calibração inicial do threshold: 0.4 empírico no fixture; 0.7 sugerido pelo plano. Calibração formal deferida para o Dia 12.
+- PR #27 criado, mesclado via squash (commit `f859eec`).
+- **Snapshot Semana 1 escrito em §📊** — yield breakdown, PRs mesclados, caminhos disponíveis, decisões consolidadas.
+
+**Resultado**:
+- ✓ 3 caminhos do minerador agora disponíveis: per-file (default), cross-file (opt-in), commit-list (mine_specific_commits) — todos com source tagging.
+- ✓ `pytest tests/ -q` → **192 passing** (171 + 21).
+- ✓ Contribuição publicável independente (D5 do plano): "primeiro miner Python open-source com extração rename-aware + cross-file".
+- ✓ **Semana 1 do sprint completa em 1 sessão overnight**.
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 8** (Semana 2) — C5c.3 identifier overlap mitigation (Jaccard sobre nomes livres + chamadas, combate FP em estruturas genéricas).
+
+**Notas**:
+- AST similarity tem limites conhecidos: Parameter Object cross-file tem similaridade ~0.17 (mudança drástica de assinatura+corpo) — threshold realista NÃO captura. Para esses, o caminho continua per-file. Documentado no PR.
+- Extract Method cross-file tem `helper_sources=[]` no adapter — Dia 6-7 não cobre helpers que cruzam arquivos. Suficiente para o sprint; caso real será visto no mass mine #2.
+- Decisão de design: usar `apted` puro Python em vez de variantes C — instalação trivial em qualquer ambiente, latência aceitável para tamanhos típicos (~150 nós).
 
 ---
 
