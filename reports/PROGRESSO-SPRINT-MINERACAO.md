@@ -36,10 +36,10 @@
 
 ### Onde estamos
 
-- **Data da última atualização**: 2026-05-20
-- **Dia do sprint**: 0 (planejamento; Dia 1 começa na próxima sessão)
-- **Semana**: Pré-execução
-- **Fase**: Plano declarado, aguardando início da execução
+- **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
+- **Dia do sprint**: 1 ✓ (Dia 2 em fila)
+- **Semana**: 1
+- **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
 ### Yield atual por smell
 
@@ -56,24 +56,24 @@
 
 ### Próxima ação concreta
 
-**Dia 1 do sprint** — atualizar schema com campo `source` + criar `data/test/`:
+**Dia 2 do sprint** — C3 ingestão de oracles (PyRef + Sourcery → `data/test/`):
 
-1. Branch `feature/source-tagging`.
-2. Em `core/schema.py`, adicionar campo `source: Optional[Literal["mined_commit","mined_pr","adjacent_oracle","translated_java"]] = "mined_commit"`.
-3. Criar `data/test/` (adicionar exceção em `.gitignore` se a regra `data/` cobrir).
-4. Script de backfill: ler todos os `data/raw/*.jsonl`, adicionar `"source": "mined_commit"` aos registros existentes, regravar.
-5. Testes em `tests/test_schema.py`.
-6. Commit, push, PR, merge.
+1. Branch `feature/c3-ingestao-oracles`.
+2. Pull PyRef CSV → adapter → `data/test/oracle_pyref_test.jsonl`.
+3. Pull Sourcery examples → adapter → `data/test/oracle_sourcery_test.jsonl`.
+4. Adicionar exceção em `.gitignore` (`!data/test/`).
+5. Testes de carregamento em `tests/test_oracle_ingest.py`.
+6. PR + merge.
 
-(Detalhes completos em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 1`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 2`.)
 
 ### Branch / PR ativo
 
-(nenhum no momento)
+(nenhum — Dia 1 mesclado via PR #22)
 
 ### Pendências / bloqueadores
 
-- Email aos autores do ActRef pedindo replication package (não bloqueador, mas começar paralelo no Dia 2).
+- **Email aos autores do ActRef** (arXiv 2505.06553) pedindo replication package — **ação humana do Gustavo**, não bloqueia o Dia 2 (PyRef + Sourcery são suficientes para começar).
 
 ---
 
@@ -151,6 +151,43 @@ Fontes: 35 repos minerados com sucesso (hypothesis falhou no clone por falta de 
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 2 — 2026-05-20 (Dia 1 — source tagging)
+
+**Duração estimada**: ~30 min (estimado original: 45-75 min — execução foi mais rápida que o buffer).
+**Dia do sprint**: 1 de 21.
+**Modo**: overnight / auto-mode declarado pelo Gustavo (avançar continuamente sem pausa).
+
+**Atividade**:
+- Sanity check inicial: `pytest tests/ -q` → 140 passing, main sincronizada.
+- Branch `feature/source-tagging` criada.
+- `core/schema.py`: adicionado campo `source: Optional[Literal[...]] = "mined_commit"` no bloco "preenchido pelo minerador", entre `n_functions_after` e `review`.
+- `tests/test_schema.py`: 3 testes novos (default `mined_commit`, aceita os 4 valores válidos, rejeita inválido via `pydantic.ValidationError`).
+- `scripts/backfill_source.py`: utilitário idempotente — itera `data/raw/*.jsonl`, adiciona `"source": "mined_commit"` onde faltar, regrava. Reporta total/já-taggeados/atualizados por arquivo.
+- `data/test/` criado vazio (gitignored — exceção fica para o Dia 2 quando houver conteúdo).
+- Backfill executado: 5 arquivos, 400 registros, 400 atualizados. Idempotência confirmada (segunda execução: 0 atualizados).
+- PR #22 criado, mesclado via squash, branch deletada, main sincronizada (commit `4173f21`).
+
+**Resultado**:
+- ✓ Schema atualizado com campo `source`.
+- ✓ 400 pares em `data/raw/*.jsonl` taggeados localmente com `source="mined_commit"`.
+- ✓ `data/test/` existe localmente, pronto para receber oracles no Dia 2.
+- ✓ `pytest tests/ -q` → **143 passing** (140 + 3 novos).
+- ✓ PR #22 mesclado.
+- ✓ Smoke load via `RefactoringPair.model_validate_json` confirmado em `long_method.jsonl` (41 pares carregados sem erro).
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 2 do sprint** — C3 ingestão de oracles. Branch `feature/c3-ingestao-oracles`. PyRef CSV + Sourcery examples → `data/test/oracle_*_test.jsonl`. Exceção em `.gitignore` para `!data/test/`. Testes de carregamento. PR + merge. Sessão overnight continua sem pausar.
+
+**Notas**:
+- gh CLI exigiu `git branch --set-upstream-to` após push via URL-com-token (o push HTTPS+gh-token não seta tracking automaticamente). Workaround documentado para futuras sessões.
+- Sem CI no repo (`statusCheckRollup: []`); merge depende apenas de `mergeable: CLEAN`.
+- Backfill foi mais rápido que o orçado porque pydantic v2 + `model_validate_json` é trivial e o volume é pequeno (400 linhas total).
 
 ---
 
