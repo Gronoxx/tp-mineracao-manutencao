@@ -323,20 +323,23 @@ def _caps_atingidos(by_smell: dict[str, dict], caps: dict[str, int]) -> bool:
 
 def _cross_file_pairs_for_commit(before_files: dict[str, str],
                                  after_files: dict[str, str],
-                                 similarity_threshold: float = 0.7) -> list[dict]:
+                                 similarity_threshold: float = 0.7,
+                                 identifier_overlap_threshold: float = 0.0) -> list[dict]:
     """Adaptador: roda `find_cross_file_candidates` e converte os pares para
     o formato dict consumido por `verify_pair` (compatível com o output do
     `extract_candidates` per-file).
 
     Cada dict carrega: `function_name`, `before_fn`, `after_fn`,
     `helper_sources` (vazio — Extract Method cross-file ainda não suportado)
-    e dois marcadores `_file_before`/`_file_after` (com prefixo underscore
-    para distinguir dos campos do candidate per-file)."""
+    e marcadores `_file_before`/`_file_after`/`_cross_file_similarity`/
+    `_identifier_overlap` (prefixo underscore para distinguir dos campos
+    do candidate per-file)."""
     from .ast_similarity import find_cross_file_candidates  # import local — apted é opcional
     out: list[dict] = []
     for c in find_cross_file_candidates(
         before_files, after_files,
         similarity_threshold=similarity_threshold,
+        identifier_overlap_threshold=identifier_overlap_threshold,
     ):
         bf = _funcinfo(c["before_source"])
         af = _funcinfo(c["after_source"])
@@ -350,6 +353,7 @@ def _cross_file_pairs_for_commit(before_files: dict[str, str],
             "_file_before": c["file_before"],
             "_file_after": c["file_after"],
             "_cross_file_similarity": c["similarity"],
+            "_identifier_overlap": c["identifier_overlap"],
         })
     return out
 
@@ -359,7 +363,8 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
          caps: dict[str, int] | None = None,
          partial_threshold: float | None = None,
          require_keyword: bool = True,
-         cross_file_threshold: float | None = None) -> dict:
+         cross_file_threshold: float | None = None,
+         identifier_overlap_threshold: float = 0.0) -> dict:
     """Minera um repositório → mescla `<smell>.jsonl` em `output_path`.
 
     Escrita acumulativa: registros já em `output_path` (de execuções
@@ -384,7 +389,13 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
     Quando float em (0, 1], ATIVA matching cross-file via AST similarity
     (APTED, ver `extracao.mineracao.ast_similarity`): funções que somem em
     um arquivo e aparecem em OUTRO com similaridade ≥ threshold viram
-    candidatos extras. Sugestão: 0.7 (calibração será feita no Dia 12)."""
+    candidatos extras. Sugestão: 0.7 (calibração será feita no Dia 12).
+
+    `identifier_overlap_threshold` (C5c.3 — Dia 8 do sprint): só aplicado
+    quando cross-file está ativo. Filtro adicional Jaccard sobre nomes de
+    identificadores (variáveis, atributos) — rejeita pares com vocabulário
+    disjunto mesmo quando estruturalmente parecidos. Default 0.0 (sem
+    filtro). Sugestão pós-calibração: 0.5."""
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -441,6 +452,7 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
             for cand_record in _cross_file_pairs_for_commit(
                 before_files, after_files,
                 similarity_threshold=cross_file_threshold,
+                identifier_overlap_threshold=identifier_overlap_threshold,
             ):
                 for rec in verify_pair(
                     cand_record, repo=repo_url, commit_hash=commit.hash,
