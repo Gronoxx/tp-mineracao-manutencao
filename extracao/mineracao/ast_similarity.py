@@ -140,11 +140,60 @@ def ast_similarity(src1: str, src2: str) -> Optional[float]:
     return max(0.0, 1.0 - distance / denom)
 
 
+def _identifiers_of(fn: ast.AST) -> set[str]:
+    """Conjunto de "identificadores semânticos" de uma função:
+
+    - Nomes lidos/escritos (`ast.Name`) — captura variáveis, params, classes.
+    - Atributos acessados (`ast.Attribute.attr`) — `cfg.total` → `{cfg, total}`.
+    - Função-alvo de chamadas quando expressa como `f(...)` ou `obj.f(...)`
+      (cobertas pelos casos acima).
+
+    Identifica o **domínio** da função: duas funções com mesma forma AST
+    mas usando nomes totalmente diferentes (e.g., `_validate_http_input`
+    vs `_validate_db_input`) ficam separáveis por este conjunto.
+
+    Ignora: literais (numbers, strings), keywords sintáticas, parâmetros
+    formais (já considerados pela ShapeHash).
+    """
+    names: set[str] = set()
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            names.add(node.attr)
+    return names
+
+
+def identifier_overlap(src1: str, src2: str) -> Optional[float]:
+    """Jaccard sobre identificadores de duas funções, em [0, 1].
+
+    `|A ∩ B| / |A ∪ B|`. Quando os dois conjuntos são vazios (improvável,
+    mas possível para funções `pass`), retorna 1.0 (não diferenciáveis).
+    Retorna `None` se alguma das fontes não parseia ou não contém função.
+
+    Uso típico (C5c.3): rejeitar par cross-file quando overlap < 0.5
+    mesmo que `ast_similarity > 0.7` — funções estruturalmente parecidas
+    mas semanticamente distintas (mesma forma genérica em domínios
+    diferentes) caem aqui.
+    """
+    fn1, fn2 = _parse_function(src1), _parse_function(src2)
+    if fn1 is None or fn2 is None:
+        return None
+    a, b = _identifiers_of(fn1), _identifiers_of(fn2)
+    if not a and not b:
+        return 1.0
+    union = a | b
+    if not union:
+        return 1.0
+    return len(a & b) / len(union)
+
+
 def find_cross_file_candidates(
     before_files: dict[str, str],
     after_files: dict[str, str],
     shape_threshold: float = 0.5,
     similarity_threshold: float = 0.7,
+    identifier_overlap_threshold: float = 0.0,
 ) -> list[dict]:
     """Pareia funções movidas entre arquivos diferentes em um mesmo commit.
 
@@ -154,11 +203,14 @@ def find_cross_file_candidates(
         shape_threshold: distância máxima de `ShapeHash` (default 0.5; valores
             altos relaxam o pré-filtro).
         similarity_threshold: similaridade mínima do APTED (default 0.7).
+        identifier_overlap_threshold: Jaccard mínimo entre identificadores
+            (default 0.0 = sem filtro). C5c.3 do sprint sugere 0.5 — funções
+            com mesma forma estrutural mas vocabulário disjunto (e.g.,
+            `_validate_http_input` vs `_validate_db_input`) são rejeitadas.
 
     Retorna lista de candidatos `{function_name_before, function_name_after,
-    file_before, file_after, similarity}`. Não chama `verify_pair` — só
-    identifica os pares; verificação fica para o caller (que precisa de mais
-    contexto para preencher o RefactoringPair).
+    file_before, file_after, similarity, identifier_overlap}`. Não chama
+    `verify_pair` — só identifica os pares.
 
     Heurística: só considera funções que NÃO estão presentes nos arquivos
     correspondentes (gone_from_before, new_in_after) — funções modificadas
@@ -207,12 +259,21 @@ def find_cross_file_candidates(
             sim = ast_similarity(g_src, f_src)
             if sim is None or sim < similarity_threshold:
                 continue
+            # C5c.3: filtro adicional por sobreposição de identificadores.
+            # Pares estruturalmente parecidos mas com vocabulário disjunto
+            # (mesma forma genérica em domínios diferentes) ficam de fora.
+            overlap = identifier_overlap(g_src, f_src)
+            if overlap is None:
+                continue
+            if overlap < identifier_overlap_threshold:
+                continue
             candidates.append({
                 "file_before": gk[0],
                 "function_name_before": gk[1],
                 "file_after": fk[0],
                 "function_name_after": fk[1],
                 "similarity": sim,
+                "identifier_overlap": overlap,
                 "before_source": g_src,
                 "after_source": f_src,
             })
