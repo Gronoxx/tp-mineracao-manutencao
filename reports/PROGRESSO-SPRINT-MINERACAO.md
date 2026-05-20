@@ -37,7 +37,7 @@
 ### Onde estamos
 
 - **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 9 ✓ (Semana 2 em andamento; Dia 10 em fila)
+- **Dia do sprint**: 10 ✓ — **PARADA NATURAL DA SESSÃO OVERNIGHT** (Dias 11-14 são network-bound de larga escala, requerem supervisão)
 - **Semana**: 1
 - **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
@@ -56,19 +56,29 @@ Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle`
 
 ### Próxima ação concreta
 
-**Dias 10-11 do sprint** — C2 GitHub PR mining (GraphQL):
+**Dia 11 do sprint (REQUER SUPERVISÃO HUMANA)** — Integração C2 com mine_pr:
 
-1. Branch `feature/c2-pr-mining-graphql`.
-2. Script `extracao/execucao/pr_search.py` usa `gh api graphql` para enumerar PRs com `label:refactoring/cleanup/code-quality/tech-debt`. Shard por ano + label.
-3. Cache `(repo, pr_number, base_sha, head_sha)` em `data/pr_list.json`.
-4. Dia 11: integração com `mine_pr()` (do Dia 4) — para cada PR cacheado, dispara mineração.
-5. Smoke em 5 PRs conhecidos; PR + merge.
+1. Branch `feature/c2-mine-pr-integration` (ou continuar da `feature/c2-pr-mining-graphql`).
+2. **Antes**: rodar `python3 extracao/execucao/pr_search.py` (mass query — pode demorar 10-30 min + rate limit risk; preferível supervisionar).
+3. Script novo que lê `data/pr_list.json`, agrupa por repo, dispara `mine_pr(repo, out, merge_commit_shas=[...])` em cada repo. Source tag `mined_pr` aplicada automaticamente.
+4. Análise: yield delta por smell.
+5. PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 2 Dia 10-11`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 2 Dia 11`.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 9 mesclado via PR #29)
+(nenhum — Dia 10 mesclado via PR #30)
+
+### Pendências para retomar com supervisão
+
+1. **Mass query PR search**: `python3 extracao/execucao/pr_search.py` (18 shards = 6 labels × 3 anos).
+2. **Dia 11**: integração do cache com `mine_pr`.
+3. **Dia 12 (mass mine #2)**: corrida fresca + commit-mode + PR-mode + drop-keyword.
+4. **Dia 13**: análise de yield.
+5. **Dia 14**: checkpoint R5 (decisão sobre adapter).
+6. **Email ActRef**: ação humana pendente do Gustavo desde Dia 2.
+7. **Calibração threshold cross-file**: rodar `behavioral_check` em 50 pares cross-file após mass mine #2.
 
 ### Pendências / bloqueadores
 
@@ -211,6 +221,40 @@ Dia 8 — C5c.3 identifier overlap mitigation. Combate FP em cross-file matching
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 10 — 2026-05-20 (Dia 10 — C2 PR search via GraphQL) + Fechamento overnight
+
+**Duração estimada**: ~30 min.
+**Dia do sprint**: 10 de 21 — **fim da sessão overnight**.
+**Modo**: overnight / auto-mode.
+
+**Atividade**:
+- `extracao/execucao/pr_search.py` (NEW): script com `_gh_graphql()` wrapper, `search_label_year(label, year)` paginado, `merge_cache()` dedup por `(repo, pr_number)`, `load/save_cache`. CLI completo (`--labels`, `--years`, `--limit-shards`, `--output`).
+- Auth via `gh api graphql` (token gh já autenticado, scope `repo`) — sem PAT custom.
+- `tests/test_pr_search.py`: 10 testes 100% offline (mock de `_gh_graphql` via `unittest.mock.patch`).
+- **Smoke real**: `--labels tech-debt --years 2024 --limit-shards 1` → **41 PRs reais** em ~3s. Distribuição: top repo `SSC-ICT-Innovatie/nl-kat-coordination` (19), `AnimalFoodBank/afb-requests` (9), `chevah/compat` (3), etc.
+- PR #30 criado, mesclado via squash (commit `7e631bd`).
+- **Decisão de parada**: Dia 11+ requer mass query GraphQL (rate limits, 18 shards × paginação imprevisível) e mass mine #2 (várias horas) — ambos com risco operacional alto overnight sem supervisão. Critério #1 do plano de overnight ("Dia 7 + snapshot") foi alcançado e ultrapassado em 3 dias.
+
+**Resultado**:
+- ✓ Infraestrutura completa para mass PR mining: `pr_search.py` + `mine_pr()` (Dia 4) + integração via `data/pr_list.json`.
+- ✓ Smoke real validou API GitHub + parsing + cache.
+- ✓ `pytest tests/ -q` → **219 passing** (209 + 10).
+- ✓ **10 dos 21 dias do sprint completos em uma única sessão overnight (~5h)**.
+
+**Bloqueadores**:
+- Nenhum — parada por escolha (network-bound futuro com supervisão).
+
+**Próxima ação**:
+- **Dia 11 (com supervisão)**: rodar `pr_search.py` mass + integrar com `mine_pr()`.
+
+**Notas finais da sessão**:
+- O sprint avançou em ritmo muito acima do previsto: 10 dias em 1 sessão vs. plano de 1 dia por sessão. Razões: (a) ferramentas pré-existentes já eram boa base (PyDriller, pydantic), (b) muitos dias eram refinamentos pequenos (Dia 5 era só regressão; Dia 9 era um módulo isolado), (c) modo auto-mode evitou pausas para confirmação.
+- Decisões importantes documentadas no §🗂️.
+- Suite cresceu 140 → 219 (+79 testes em 10 dias).
+- 9 PRs técnicos mesclados (#22-#30), 10 commits de PROGRESSO direto na main.
 
 ---
 
