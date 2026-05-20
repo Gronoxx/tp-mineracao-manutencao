@@ -178,7 +178,8 @@ PARTIAL_REDUCTION_MIN = 0.1
 def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
                 parent_commit: str | None, commit_msg: str,
                 msg_keywords: list[str], filename: str,
-                partial_threshold: float | None = None) -> list[RefactoringPair]:
+                partial_threshold: float | None = None,
+                source: str = "mined_commit") -> list[RefactoringPair]:
     """Estágio 3 — roda os 5 detectores; emite um RefactoringPair por smell
     cujo detector dispara no `before`.
 
@@ -260,6 +261,7 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
             verified=True,
             partial=is_partial,
             n_functions_after=n_after,
+            source=source,
         ))
     return records
 
@@ -372,5 +374,71 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
 
         if caps is not None and _caps_atingidos(by_smell, caps):
             break   # todos os smells encheram o orçamento — para a varredura
+
+    return _merge_write(output_path, by_smell)
+
+
+def mine_specific_commits(repo_url: str, output_path: Path,
+                          commit_hashes: list[str],
+                          partial_threshold: float | None = 0.1,
+                          source: str = "adjacent_oracle",
+                          clone_repo_to: str | None = None) -> dict:
+    """C3 (Dia 3 do sprint) — minera commits PRÉ-IDENTIFICADOS como refatoração
+    (não passa pelo filtro de keyword) e marca os pares resultantes com a tag
+    de proveniência `source` (default `"adjacent_oracle"`).
+
+    Diferenças vs. `mine()`:
+        - Restringe a iteração a `commit_hashes` via PyDriller (`only_commits`).
+        - **Não** chama `matched_keywords` para filtrar — esses commits já são
+          conhecidos como refatoração (PyRef/Sourcery/ActRef etc.); a função
+          de keyword foi pensada como pré-filtro de recall para mineração cega,
+          não faz sentido aplicá-la aqui (perderia commits que PyRef já validou).
+        - Default `partial_threshold=0.1`: aceita refatorações parciais por
+          design (oracles podem rotular um aspecto de um commit multi-smell).
+        - Default `source="adjacent_oracle"`: tag de proveniência.
+
+    Idempotente: o merge por `id` continua valendo — rodar 2× não duplica.
+    Retorna o dict de contagem por smell (mesmo formato de `mine()`).
+    """
+    output_path = Path(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    by_smell: dict[str, dict[str, dict]] = {}
+    if not commit_hashes:
+        return _merge_write(output_path, by_smell)
+
+    kwargs = dict(
+        only_commits=list(commit_hashes),
+        only_no_merge=True,
+        only_modifications_with_file_types=[".py"],
+    )
+    if clone_repo_to:
+        kwargs["clone_repo_to"] = clone_repo_to
+    repo = Repository(repo_url, **kwargs)
+
+    for commit in repo.traverse_commits():
+        parent = commit.parents[0] if commit.parents else None
+        # Mensagem do commit ainda entra como metadado (útil pra rastreio),
+        # mas as keywords NÃO viram filtro nem condicionam aceitação.
+        keywords = matched_keywords(commit.msg)
+
+        for mf in commit.modified_files:
+            path = mf.new_path or mf.old_path or mf.filename or ""
+            if not path.endswith(".py") or _is_test_path(path):
+                continue
+            if mf.source_code_before is None or mf.source_code is None:
+                continue
+
+            for cand in extract_candidates(mf.source_code_before,
+                                           mf.source_code, path):
+                for rec in verify_pair(
+                    cand, repo=repo_url, commit_hash=commit.hash,
+                    parent_commit=parent, commit_msg=commit.msg,
+                    msg_keywords=keywords, filename=path,
+                    partial_threshold=partial_threshold,
+                    source=source,
+                ):
+                    bucket = by_smell.setdefault(rec.smell_type, {})
+                    bucket[rec.id] = rec.model_dump()
 
     return _merge_write(output_path, by_smell)
