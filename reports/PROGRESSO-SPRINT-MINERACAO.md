@@ -37,7 +37,7 @@
 ### Onde estamos
 
 - **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 4 ✓ (Dia 5 em fila)
+- **Dia do sprint**: 5 ✓ (Dias 6-7 em fila — AST similarity)
 - **Semana**: 1
 - **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
@@ -56,19 +56,22 @@ Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle`
 
 ### Próxima ação concreta
 
-**Dia 5 do sprint** — C5c.1 (file rename tracking):
+**Dias 6-7 do sprint** — C5c.2 (AST similarity matching com APTED):
 
-1. Branch `feature/c5c1-rename-aware-files`.
-2. Em `extract_candidates`: tratar `ModifiedFile.change_type == RENAME` (PyDriller).
-3. Funções com mesmo nome entre arquivos diferentes (`new_path != old_path`) viram pares candidatos.
-4. Teste com fixture: cria função A em arquivo X, commita, move pra arquivo Y + refatora.
-5. PR + merge.
+1. Branch `feature/c5c2-ast-similarity`.
+2. `pip install apted` (ou fallback `zss` se C-ext falhar).
+3. Função `_ast_similarity(fn1_source, fn2_source) -> float`: parseia, tree-edit distance, normaliza.
+4. Pre-filter via shape hash (n_stmts, n_params, depth) — descarta pares óbvios em O(n).
+5. Em `extract_candidates`: novo modo "cross-file similarity" — função desaparece no before, função com ≥0.7 similaridade aparece no after → pareia.
+6. Calibrar threshold em 50 pares PyRef oracle (precision > 0.7).
+7. Snapshot fim semana 1.
+8. PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 5`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 6-7`.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 4 mesclado via PR #25)
+(nenhum — Dia 5 mesclado via PR #26)
 
 ### Pendências / bloqueadores
 
@@ -150,6 +153,36 @@ Fontes: 35 repos minerados com sucesso (hypothesis falhou no clone por falta de 
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 6 — 2026-05-20 (Dia 5 — C5c.1 file rename tracking)
+
+**Duração estimada**: ~25 min.
+**Dia do sprint**: 5 de 21.
+**Modo**: overnight / auto-mode.
+
+**Atividade**:
+- Investigação: testei o comportamento atual do `mine()` em fixture local com `git mv` + refactor. PyDriller detecta `ModificationType.RENAME` quando a similaridade entre old/new é alta (>50%) e entrega `source_code_before`/`source_code` no mesmo `ModifiedFile`. `extract_candidates` já casa funções por nome — sem lógica especial necessária.
+- `extracao/mineracao/minerador.py`: comentário em `extract_candidates` documentando a propriedade RENAME-aware e apontando para testes.
+- `tests/test_minerador_rename.py`: 3 testes (RENAME+R2, RENAME+R1, ADD+DELETE como limite documentado).
+- Fixture-craft: precisei de ~160 linhas comuns (80 funcs util idênticas) para manter similaridade > 50% no R1 case (que muda foo drasticamente).
+- PR #26 criado, mesclado via squash (commit `04eb93b`).
+
+**Resultado**:
+- ✓ Cobertura de regressão para o caso RENAME-aware.
+- ✓ Limite atual documentado: ADD+DELETE separados (similaridade baixa) NÃO produzem par — fica para Dia 6-7 (AST similarity cross-file).
+- ✓ `pytest tests/ -q` → **171 passing** (168 + 3).
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 6-7** — C5c.2 AST similarity matching (APTED).
+
+**Notas**:
+- Dia 5 acabou sendo "menor" que o esperado: o trabalho real já estava no PyDriller. O valor agregado foi cobertura de testes + documentação do comportamento + identificação clara do limite (cross-file sem rename).
+- Caso interessante para o snapshot do Dia 7: medir quantos dos pares de `data/raw/` vieram de commits com RENAME — daria ideia da contribuição real desse mecanismo. Adicionado como item informal.
 
 ---
 
