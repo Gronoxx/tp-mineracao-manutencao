@@ -194,8 +194,18 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
     records: list[RefactoringPair] = []
 
     for smell_name, detect in DETECTORS.items():
-        before_res = detect(bf)
-        after_res = detect(af)
+        # Resiliência: um detector que crashar num input estranho NÃO pode
+        # derrubar a corrida — só pulamos esse smell para esse candidato e
+        # logamos (corridas de produção são longas; um único bug não pode
+        # custar horas de mineração).
+        try:
+            before_res = detect(bf)
+            after_res = detect(af)
+        except Exception as exc:
+            print(f"  WARN: detector {smell_name!r} falhou em "
+                  f"{candidate.get('function_name')!r}: "
+                  f"{type(exc).__name__}: {exc}", flush=True)
+            continue
         if not before_res.detected:
             continue
 
