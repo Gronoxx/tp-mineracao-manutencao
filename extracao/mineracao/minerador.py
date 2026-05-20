@@ -316,7 +316,8 @@ def _caps_atingidos(by_smell: dict[str, dict], caps: dict[str, int]) -> bool:
 def mine(repo_url: str, output_path: Path, since=None, to=None,
          max_commits: int | None = None,
          caps: dict[str, int] | None = None,
-         partial_threshold: float | None = None) -> dict:
+         partial_threshold: float | None = None,
+         require_keyword: bool = True) -> dict:
     """Minera um repositório → mescla `<smell>.jsonl` em `output_path`.
 
     Escrita acumulativa: registros já em `output_path` (de execuções
@@ -329,7 +330,12 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
     `caps` (opcional): teto de pares por smell-code para ESTA chamada — quando
     um smell atinge o teto, novos pares dele são ignorados; quando todos os
     smells de `caps` enchem, a varredura do repositório para. O runner usa isso
-    para distribuir o cap global entre os repositórios (diversidade)."""
+    para distribuir o cap global entre os repositórios (diversidade).
+
+    `require_keyword` (C5b — Dia 4 do sprint): quando `True` (default), pula
+    commits cuja mensagem não casa nenhuma `SMELL_KEYWORDS` (pré-filtro de
+    recall). Quando `False`, processa TODO commit — útil para mineração mais
+    agressiva em janelas curtas, ao custo de mais commits varridos."""
     output_path = Path(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -343,7 +349,7 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
     )
     for commit in repo.traverse_commits():
         keywords = matched_keywords(commit.msg)   # estágio 1
-        if not keywords:
+        if require_keyword and not keywords:
             continue
         if max_commits is not None and scanned >= max_commits:
             break
@@ -382,7 +388,8 @@ def mine_specific_commits(repo_url: str, output_path: Path,
                           commit_hashes: list[str],
                           partial_threshold: float | None = 0.1,
                           source: str = "adjacent_oracle",
-                          clone_repo_to: str | None = None) -> dict:
+                          clone_repo_to: str | None = None,
+                          only_no_merge: bool = True) -> dict:
     """C3 (Dia 3 do sprint) — minera commits PRÉ-IDENTIFICADOS como refatoração
     (não passa pelo filtro de keyword) e marca os pares resultantes com a tag
     de proveniência `source` (default `"adjacent_oracle"`).
@@ -397,6 +404,9 @@ def mine_specific_commits(repo_url: str, output_path: Path,
           design (oracles podem rotular um aspecto de um commit multi-smell).
         - Default `source="adjacent_oracle"`: tag de proveniência.
 
+    `only_no_merge=False` permite incluir merge commits — usado por `mine_pr()`
+    para processar o merge commit de um PR como um único candidate batch.
+
     Idempotente: o merge por `id` continua valendo — rodar 2× não duplica.
     Retorna o dict de contagem por smell (mesmo formato de `mine()`).
     """
@@ -409,7 +419,7 @@ def mine_specific_commits(repo_url: str, output_path: Path,
 
     kwargs = dict(
         only_commits=list(commit_hashes),
-        only_no_merge=True,
+        only_no_merge=only_no_merge,
         only_modifications_with_file_types=[".py"],
     )
     if clone_repo_to:
@@ -442,3 +452,35 @@ def mine_specific_commits(repo_url: str, output_path: Path,
                     bucket[rec.id] = rec.model_dump()
 
     return _merge_write(output_path, by_smell)
+
+
+def mine_pr(repo_url: str, output_path: Path,
+            merge_commit_shas: list[str],
+            partial_threshold: float | None = 0.1,
+            clone_repo_to: str | None = None) -> dict:
+    """C5a (Dia 4 do sprint) — minera PRs como diff único.
+
+    Cada SHA em `merge_commit_shas` deve ser o **merge commit** que fechou um
+    PR no repositório (resolução: `gh pr view <N> --json mergeCommit.oid`).
+    PyDriller processa o merge commit comparando contra seu primeiro parent —
+    em PRs squash-merged isso é o diff completo do PR; em true merges é o
+    cumulativo desde a divergência da branch.
+
+    Pares produzidos recebem `source="mined_pr"` (D5 do sprint — distingue
+    pares colapsados-por-PR dos commit-a-commit do `mine()`).
+
+    Implementação: thin wrapper sobre `mine_specific_commits` com
+    `only_no_merge=False` (precisamos do merge commit) e `source="mined_pr"`.
+    Bypassa o filtro de keyword pela mesma razão do C3: o PR já foi rotulado
+    como "refactor" pelo label externo (C2 — Dia 10/11 vai povoar essa lista
+    via GraphQL); o keyword na mensagem perderia PRs validados.
+    """
+    return mine_specific_commits(
+        repo_url=repo_url,
+        output_path=output_path,
+        commit_hashes=merge_commit_shas,
+        partial_threshold=partial_threshold,
+        source="mined_pr",
+        clone_repo_to=clone_repo_to,
+        only_no_merge=False,
+    )
