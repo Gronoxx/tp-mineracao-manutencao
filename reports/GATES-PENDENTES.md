@@ -13,12 +13,12 @@
 
 | Gate | Bloqueia | Quando rodar | Custo estimado | Status |
 |---|---|---|---:|---|
-| Inspeção automática dos pares adjacent_oracle (G0) | Dia 11 | Pronto pra rodar | 1s | ✓ EXECUTADO |
+| Inspeção automática dos pares adjacent_oracle (G0) | Dia 11 | Pronto pra rodar | 1s | ✓ EXECUTADO (Sessão 10) |
 | Calibração de threshold AST cross-file (G1) | Mass mine #2 com cross-file | Depende de G2 | 30min | PENDENTE |
 | Calibração de threshold identifier overlap (G1') | Mass mine #2 com cross-file | Depende de G2 | junto com G1 | PENDENTE |
 | Behavioral check em amostra de pares cross-file (G2) | G1, G1' | Depende de mass mine #2 produzir cross-file pairs | 30-60min | PENDENTE |
-| Smoke yield-delta `require_keyword=False` (G3) | Decisão de usar `require_keyword=False` no mass mine | Antes do mass mine #2 | 30-60min (3 repos) | PENDENTE |
-| Quality check automático em CADA mass mine (G4) | É um gate de regressão | Pós-mass mine | 1s | PRONTO PRA RODAR |
+| Smoke yield-delta `require_keyword=False` (G3) | Decisão de usar `require_keyword=False` no mass mine | Antes do mass mine #2 | 30-60min (3 repos) | ✓ EXECUTADO (Sessão 12) |
+| Quality check automático em CADA mass mine (G4) | É um gate de regressão | Pós-mass mine | 1s | ✓ EXECUTADO em mined_pr (Sessão 12) |
 | Inspeção manual de WARN agregados por commit (G5) | Não bloqueia, mas reduz incerteza | Após qualquer mass mine | 5-30min/mass mine | PENDENTE |
 
 ---
@@ -173,7 +173,29 @@ mass mine #2 de produção (que mantém cross-file DESLIGADO conforme G1).
 
 ---
 
-## G3 — Smoke yield-delta `require_keyword=False` 🚧 PENDENTE
+## G3 — Smoke yield-delta `require_keyword=False` ✓ EXECUTADO (Sessão 12, 2026-05-20)
+
+**Resultado (3 repos × 2 modos, ~30 min):**
+
+| Repo | kw=True | kw=False | Delta | G4 FAILs em kw=False |
+|---|---:|---:|---:|---|
+| flask | 2 | 23 | 11.5x | 2/23 (8.7%) |
+| click | 1 | 9 | 9x | 0/9 (0%) |
+| requests | 0 | 25 | ∞ | 2/25 (8%) |
+| **Total** | **3** | **57** | **~19x** | **4/57 (7%)** |
+
+**Critério do plano**:
+- < 10x → seguro ativar.
+- 10-100x → analisar precision em amostra antes de ativar. ← caímos AQUI.
+- > 100x → manter True.
+
+**G4 anexo (precision check)**: FAIL rate 5-9% nos pares kw=False, abaixo do threshold de 20% WARN. Os 57 pares kw=False têm ~53 limpos estruturalmente. Os FPs estruturais (similarity_too_low) são detectados automaticamente; FPs semânticos podem existir mas não foram amostrados.
+
+**Decisão**: ativar `require_keyword=False` no Dia 12 mass mine #2 é mais SEGURO do que se temia. **Default mantido em True por precaução** (apenas reverte se Fase A der yield suficiente); ramp para False fica como opção em Fase B do esgotamento dos 36 curados.
+
+---
+
+## G3 — Smoke yield-delta `require_keyword=False` (descrição original)
 
 **O que é:** comparar yield em 3 repos pequenos (flask, click, requests) com
 `require_keyword=True` (default) vs `False`, para entender o ganho
@@ -208,7 +230,34 @@ provavelmente carrega muito FP — manter `require_keyword=True` no mass mine #2
 
 ---
 
-## G4 — Quality check automático em CADA mass mine ✓ PRONTO PRA RODAR
+## G4 — Quality check automático em CADA mass mine ✓ EXECUTADO em mined_pr (Sessão 12, 2026-05-20)
+
+**Resultado pós Dia 11 (c2 mass mine PR):**
+
+```
+=== Quality Check — 7 pares mined_pr ===
+  CLEAN: 7   (100.0%)
+  WARN:  0   (0.0%)
+  FAIL:  0   (0.0%)
+```
+
+**Resultado holístico (`data/raw/` completo, 432 pares):**
+
+```
+  CLEAN: 366  (84.7%)
+  WARN:  51   (11.8%)
+  FAIL:  15   (3.5%)
+```
+
+Os FAILs (15 todos `similarity_too_low`) são do `mined_commit` pré-existente (mass mine #1). Os 7 novos `mined_pr` são 100% CLEAN.
+
+**Critério atingido**: 0 FAILs em mined_pr, < 20% WARN holístico. Pipeline c2 validado.
+
+**Decisão de processo**: integrar G4 ao runner do mass mine como gate automático — exit code != 0 aborta análise posterior (Dia 13). Implementação fica para Dia 12 (após Fase A).
+
+---
+
+## G4 — Quality check automático em CADA mass mine (descrição original)
 
 **O que é:** rodar `scripts/quality_check_pairs.py` no resultado de toda
 mass mineração, como gate de regressão.
@@ -254,29 +303,32 @@ WARN.
 
 ---
 
-## Resumo de decisões para Dia 11
+## Resumo de decisões para Dia 12 (atualizado pós Sessão 12)
 
-A partir desta documentação, as **decisões padrão para o Dia 11** são:
+A partir do que foi medido no Dia 11, as **decisões padrão para o Dia 12** são:
 
-1. ✅ **`require_keyword=False`** → NÃO ativar sem G3 rodado primeiro.
-   Manter mass mine #2 com `require_keyword=True` (default) inicialmente.
+1. ✅ **`require_keyword=False`** → G3 RODADO, precision-validada (5-9% FAIL).
+   **Default Dia 12 mantém kw=True** (precaução). Ativação em Fase B do
+   esgotamento dos 36 curados, com G4 imediato pós-rodada.
 
-2. ✅ **`cross_file_threshold`** → NÃO ativar no mass mine #2 (manter
-   `None`). Cross-file requer G1+G2 calibrados.
+2. ✅ **`cross_file_threshold`** → NÃO ativar. Cross-file requer G1+G2
+   calibrados (rodada SEPARADA de calibração nos 3 repos pequenos).
 
 3. ✅ **`identifier_overlap_threshold`** → idem, manter 0.0.
 
-4. ✅ **`mine_pr` via `data/pr_list.json`** → SEGURO PARA ATIVAR.
-   `mine_pr` reutiliza o detector estrito + estrutura conservadora, sem
-   FP novo previsto. Sugestão: rodar G4 (quality check) imediatamente
-   após para confirmar.
+4. ✅ **`mine_pr` via `data/pr_list.json`** → APROVADO (G4 passou 7/7 CLEAN).
+   c2 mass mine pode ser re-rodado em outros conjuntos sem re-validação.
 
-5. ✅ **`mine_specific_commits` adjacent_oracle** → JÁ APROVADO (G0
-   passou com 0 FAILs).
+5. ✅ **`mine_specific_commits` adjacent_oracle** → APROVADO (G0 passou).
 
-**Em resumo: o mass mine #2 pode rodar em modo COMBINADO conservador
-(commit + PR + adjacent), com cross-file DESLIGADO. Cross-file precisa de
-calibração separada antes de entrar em produção.**
+**Estratégia Dia 12: esgotamento dos 36 curados.** Fases:
+- **Fase A** (Dia 12 manhã): expansão temporal SINCE 2020→2015, kw=True.
+- **Fase B** (Dia 12 tarde/noite, se necessário): kw=False mass mine.
+- **Fase C** (Dia 13): G1+G2 calibração + cross-file mass mine #3.
+
+Mass mine combinado (commit + PR) só faz sentido se ampliarmos o conjunto
+de repos para tier-2 (home-assistant etc.) — decisão diferida para após
+Fase B.
 
 ---
 

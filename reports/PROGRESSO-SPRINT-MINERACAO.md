@@ -44,39 +44,41 @@ qualidade pendentes com decisões padrão para o Dia 11. **G0 já executado**
 
 ### Onde estamos
 
-- **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 10 ✓ — **PARADA NATURAL DA SESSÃO OVERNIGHT** (Dias 11-14 são network-bound de larga escala, requerem supervisão)
-- **Semana**: 1
-- **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
+- **Data da última atualização**: 2026-05-20 (Sessão 12 — Dia 11 ✓)
+- **Dia do sprint**: 11 ✓ — C2 integração executada nos 36 repos curados (7 com PRs labeled refactor); G3 smoke rodado.
+- **Semana**: 2
+- **Fase**: Execução — esgotamento dos 36 repos curados antes de avançar para tier-2.
 
 ### Yield atual por smell
 
-Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle` em `data/raw/`.
+Pós-Dia 11 (C2 mine_pr nos 7 repos curados com PRs labeled): +7 pares `mined_pr` em `data/raw/` (pandas=5, scrapy=2).
 
-| Smell | mined_commit | adjacent_oracle | Total | Min viável | % do min | Status |
-|---|---:|---:|---:|---:|---:|---|
-| R1 Extract Method | 41 | 1 | 42 | 800 | 5% | ✗ |
-| R2 Parameter Object | 53 | 7 | 60 | 600 (140 c/ r=8 attn) | 10% (43%) | ✗ |
-| R3 Named Constant | 129 | 12 | 141 | 200 | 70% | borderline ↑ |
-| R4 Guard Clauses | 127 | 4 | 131 | 400 | 33% | ✗ |
-| R5 Remove Dead Code | 50 | 1 | 51 | 300 | 17% | ✗ |
-| **Total** | **400** | **25** | **425** | | | |
+| Smell | mined_commit | adjacent_oracle | mined_pr | Total | Min viável | % do min | Status |
+|---|---:|---:|---:|---:|---:|---:|---|
+| R1 Extract Method | 41 | 1 | 2 | 44 | 800 | 6% | ✗ |
+| R2 Parameter Object | 53 | 7 | 1 | 61 | 600 (140 c/ r=8 attn) | 10% (44%) | ✗ |
+| R3 Named Constant | 129 | 12 | 2 | 143 | 200 | 72% | borderline ↑ |
+| R4 Guard Clauses | 127 | 4 | 2 | 133 | 400 | 33% | ✗ |
+| R5 Remove Dead Code | 50 | 1 | 0 | 51 | 300 | 17% | ✗ |
+| **Total** | **400** | **25** | **7** | **432** | | | |
 
 ### Próxima ação concreta
 
-**Dia 11 do sprint (REQUER SUPERVISÃO HUMANA)** — Integração C2 com mine_pr:
+**Dia 12 (esgotamento dos 36 curados — Fase A)** — Expandir janela temporal:
 
-1. Branch `feature/c2-mine-pr-integration` (ou continuar da `feature/c2-pr-mining-graphql`).
-2. **Antes**: rodar `python3 extracao/execucao/pr_search.py` (mass query — pode demorar 10-30 min + rate limit risk; preferível supervisionar).
-3. Script novo que lê `data/pr_list.json`, agrupa por repo, dispara `mine_pr(repo, out, merge_commit_shas=[...])` em cada repo. Source tag `mined_pr` aplicada automaticamente.
-4. Análise: yield delta por smell.
+1. Branch `feature/c2-temporal-expansion`.
+2. Mudar `SINCE=datetime(2015,1,1)` em `extracao/execucao/mineracao.py` (atualmente `2020-01-01`).
+3. Re-rodar mass mine nos 36 curados com kw=True (default). Yield esperado: +100-300 pares.
+4. G4 quality check pós-rodada.
 5. PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 2 Dia 11`.)
+Após Fase A: avaliar Fase B (kw=False mass mine, alavanca ~19x, custo várias horas) ou Fase C-calibração (G1+G2).
+
+(Detalhes em estratégia de esgotamento — Sessão 12 do log.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 10 mesclado via PR #30)
+`feature/c2-mass-mine-pr` — PR a abrir após merge do PROGRESSO. Adiciona `scripts/c2_mass_mine_pr.py` (integração `pr_list.json` → `mine_pr()` agrupada por repo).
 
 ### Pendências para retomar com supervisão
 
@@ -123,6 +125,9 @@ Decisões tomadas DURANTE a execução do sprint (≠ decisões do plano, que es
 | 2026-05-20 | Dia 6-7: AST similarity ignora nomes de identificadores | Robusto a rename de variáveis; sensível só a estrutura | `identifier_overlap` complementar fica para Dia 8 (combater FP em estruturas genéricas) |
 | 2026-05-20 | Calibração formal do `cross_file_threshold` deferida para Dia 12 | Mass mine #2 produzirá o universo de calibração; 50 pares oracle ainda não têm código extraído | Threshold 0.4-0.7 documentado empiricamente nos testes |
 | 2026-05-20 | Smoke em flask/click/requests deferido para Dia 12 | Custo de rede alto overnight; testes unitários cobrem correção | Mass mine #2 já cobre yield delta em modo combinado |
+| 2026-05-20 | Dia 11: cap qualitativo (36 repos curados) em vez de numérico no c2 mass mine | Mass search retornou 1.457 repos / 12.148 PRs; rodar tudo = 100s GB + horas; user pediu "maduros e confiáveis" | Reduziu a 7 repos / 201 PRs (interseção curados ∩ pr_list); yield 7 pares 100% CLEAN |
+| 2026-05-20 | Dia 11: estratégia de esgotamento dos 36 curados antes de tier-2 | Maximizar uso dos repos já validados; tier-2 (home-assistant 2.905 PRs etc.) entra depois | Fases A→B→C com decisão informada por yield real |
+| 2026-05-20 | G3 smoke rodado e PRECISION validada via G4 | Decisão de `require_keyword=False` no mass mine #2 estava pendente; G3 mediu delta ~19x e G4 mediu FAIL rate 5-9% | Habilita Fase B do esgotamento como opção informada; mantém kw=True como default até decisão de Dia 12 |
 
 ---
 
@@ -233,6 +238,50 @@ Dia 8 — C5c.3 identifier overlap mitigation. Combate FP em cross-file matching
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 12 — 2026-05-20 (Dia 11 — C2 mass PR search + integração mine_pr + G3 + G4)
+
+**Duração estimada**: ~2h (incluindo background tasks).
+**Dia do sprint**: 11 de 21.
+**Modo**: ACORDADO + verificando (gates explícitos, sem auto-mode).
+
+**Atividade**:
+- Sanity check: 219 passing, main sincronizada.
+- **Mass PR search** (`extracao/execucao/pr_search.py`): 18 shards (6 labels × 3 anos) em ~15 min. Resultado: **12.148 PRs em 1.457 repos** (cache em `data/pr_list.json`, gitignored). Distribuição heavy-tailed (home-assistant=2.905, top 5 repos=33% do volume, 1.141 repos com 1-5 PRs cada).
+- **Decisão de cap** (consultada com Gustavo): em vez de cap numérico, usar análise qualitativa — manter apenas os 36 repos curados em `mineracao.py:REPOS`. Cross-reference revelou: 7 dos 36 curados aparecem no pr_list (201 PRs); 29 curados NÃO usam labels de refactor consistentemente (django, flask, numpy, etc.).
+- `scripts/c2_mass_mine_pr.py` (NEW): espelha `c3_adjacent_mining.py`. Lê `data/pr_list.json`, agrupa por repo, dispara `mine_pr(repo_url, output_path, merge_commit_shas=[...])` em cada repo com clones cached em `/tmp/c2_pr_clones/`. CLI: `--input`, `--out`, `--clones-dir`, `--partial-threshold`, `--limit-repos`.
+- Subset curado gerado: `data/pr_list_curated.json` (201 PRs, 7 repos).
+- **Smoke c2** (`--limit-repos 2`, httpx+fastapi): 0 pares — diagnóstico: PRs labelados nesses repos são micro-changes (drop import, type annotation, lazy module load) que não disparam R1-R5. Pipeline funciona; yield baixo por design dos labels.
+- **Full c2 curado** (7 repos, 201 PRs, 21.5 min): **+7 pares mined_pr** (pandas=5, scrapy=2; httpx/fastapi/pydantic/Pillow/scikit-learn=0). Best yield/PR: pandas 14.7%.
+- **G4 quality check em mined_pr**: **7/7 CLEAN (100%), 0 FAILs, 0 WARNs**.
+- **G4 holistic em `data/raw/`**: 432 pares, 366 CLEAN (84.7%), 51 WARN (11.8%), 15 FAIL (3.5%). FAILs/WARNs são do mined_commit pré-existente; mined_pr 100% limpo.
+- **G3 smoke** (flask/click/requests, kw=True vs False):
+  - flask: 2 → 23 (delta 11.5x). G4 nos kw=False: 2 FAILs (8.7%).
+  - click: 1 → 9 (delta 9x). G4: 0 FAILs.
+  - requests: 0 → 25 (delta ∞). G4: 2 FAILs (8%).
+  - **Total: 3 → 57 (delta ~19x médio). FAIL rate 5-9%**. Zona "10-100x" exige decisão informada (não automático).
+
+**Resultado**:
+- ✓ Infraestrutura C2 (PR mining) validada end-to-end: pr_search.py (mass) + c2_mass_mine_pr.py (integração) + mine_pr (Dia 4) + G4 (quality check).
+- ✓ +7 pares mined_pr em `data/raw/`, 100% CLEAN. Total: 432 pares (was 425).
+- ✓ G3 + G4 precision-validados para `require_keyword=False`. Habilita Fase B do esgotamento como opção informada.
+- ✓ Estratégia de esgotamento dos 36 curados delineada (Fases A→B→C).
+- ✓ `pytest tests/ -q` mantém 219 passing.
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 12 — Fase A**: expandir janela temporal (SINCE 2020→2015) e re-rodar mass mine nos 36 curados com kw=True. Yield esperado: +100-300 pares.
+- Após Fase A: decidir Fase B (kw=False mass mine, ~19x alavanca, custo ~6-12h overnight) vs Fase C-calibração (G1+G2 cross-file).
+
+**Notas**:
+- A descoberta principal não é o yield (+7) e sim o mapa do universo: 12.148 PRs em 1.457 repos é universo enorme; só 7 dos 36 curados (~19%) usam labels refactor. Os 29 curados sem labels precisam de caminhos alternativos (commit-mode kw=False, adjacent_oracle expandido, cross-file).
+- Pandas e scrapy mostraram-se os melhores rendedores em modo PR (14.7% e 2.9% yield/PR). Confirma intuição de que repos maduros com PRs longos e disciplinados rendem melhor.
+- Decisão de não ativar `require_keyword=False` agora foi precautória (zona 10-100x exige análise); resultado de G4 (5-9% FAIL) sugere que ativar é mais SEGURO do que se temia. Será decidido no Dia 12 após Fase A.
+- gh CLI workaround do push HTTPS+token segue obrigatório.
 
 ---
 
