@@ -5,6 +5,14 @@
 
 ---
 
+## 🚧 Antes de retomar: ver `reports/GATES-PENDENTES.md`
+
+Documento criado na Sessão 11 (pós-overnight) listando todos os gates de
+qualidade pendentes com decisões padrão para o Dia 11. **G0 já executado**
+(quality check passou com 0 FAILs nos 25 adjacent_oracle).
+
+---
+
 ## ⚡ Como usar este documento (LEIA PRIMEIRO)
 
 ### Início de cada sessão nova
@@ -72,13 +80,17 @@ Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle`
 
 ### Pendências para retomar com supervisão
 
+> 🚧 **LEIA PRIMEIRO**: `reports/GATES-PENDENTES.md` — lista completa de gates
+> de qualidade com decisões padrão para o Dia 11.
+
 1. **Mass query PR search**: `python3 extracao/execucao/pr_search.py` (18 shards = 6 labels × 3 anos).
-2. **Dia 11**: integração do cache com `mine_pr`.
-3. **Dia 12 (mass mine #2)**: corrida fresca + commit-mode + PR-mode + drop-keyword.
-4. **Dia 13**: análise de yield.
+2. **Dia 11**: integração do cache com `mine_pr` + quality check automático.
+3. **Dia 12 (mass mine #2)**: modo COMBINADO conservador (commit + PR + adjacent), cross-file DESLIGADO até calibração.
+4. **Dia 13**: análise de yield + quality check (G4) como gate.
 5. **Dia 14**: checkpoint R5 (decisão sobre adapter).
 6. **Email ActRef**: ação humana pendente do Gustavo desde Dia 2.
-7. **Calibração threshold cross-file**: rodar `behavioral_check` em 50 pares cross-file após mass mine #2.
+7. **Calibração threshold cross-file (G1+G2)**: roda em mass mine SEPARADO (não no #2), após o #2 estabilizar.
+8. **Smoke G3 (`require_keyword=False`)**: rodar em flask/click/requests antes de ativar no mass mine.
 
 ### Pendências / bloqueadores
 
