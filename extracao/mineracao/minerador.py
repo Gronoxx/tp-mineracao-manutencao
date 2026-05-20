@@ -108,7 +108,15 @@ def extract_candidates(before_src: str, after_src: str, filename: str) -> list[d
 
     Cada candidato carrega os `FunctionInfo` antes/depois e os `helper_sources`
     (funções novas no arquivo que o corpo do `after` passou a chamar — usado
-    pelo R1 Extract Method)."""
+    pelo R1 Extract Method).
+
+    C5c.1 (Dia 5 do sprint — rename-aware): quando `PyDriller` detecta um
+    `ModificationType.RENAME` em um commit, ele entrega `source_code_before`
+    (conteúdo do arquivo no `old_path`) e `source_code` (conteúdo no `new_path`)
+    no mesmo `ModifiedFile`. Assim, esta função casa funções com o mesmo NOME
+    entre arquivos diferentes automaticamente — não há lógica especial aqui;
+    o tratamento depende só de PyDriller alimentar os dois trechos.
+    (Cobertura: `tests/test_minerador_rename.py`.)"""
     try:
         before = parse_file_from_string(before_src, filename)
         after = parse_file_from_string(after_src, filename)
