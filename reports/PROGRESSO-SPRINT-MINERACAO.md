@@ -37,7 +37,7 @@
 ### Onde estamos
 
 - **Data da última atualização**: 2026-05-20 (sessão overnight em andamento)
-- **Dia do sprint**: 3 ✓ (Dia 4 em fila)
+- **Dia do sprint**: 4 ✓ (Dia 5 em fila)
 - **Semana**: 1
 - **Fase**: Execução — Dia 1 (source tagging) mergeado. Modo overnight/auto: avançar pelos Dias 2-7 enquanto destravar.
 
@@ -56,20 +56,19 @@ Pós-Dia 3 (C3 adjacent mining mesclado via PR #24): +25 pares `adjacent_oracle`
 
 ### Próxima ação concreta
 
-**Dia 4 do sprint** — C5a (mine_pr) + C5b (drop keyword flag):
+**Dia 5 do sprint** — C5c.1 (file rename tracking):
 
-1. Branch `feature/c5a-multicommit-c5b-drop-keyword`.
-2. Em `mine()`: adicionar flag `require_keyword: bool = True`; quando `False`, pula `matched_keywords()`.
-3. Nova função `mine_pr(repo_url, output_path, pr_number, ...)`: clona o repo, descobre merge commit do PR, faz diff base..head, processa como batch único.
-4. Testes em `tests/test_minerador_pr_mode.py`.
-5. Smoke em 3 repos pequenos (flask, click, requests) — sem keyword filter, ver yield delta.
-6. PR + merge.
+1. Branch `feature/c5c1-rename-aware-files`.
+2. Em `extract_candidates`: tratar `ModifiedFile.change_type == RENAME` (PyDriller).
+3. Funções com mesmo nome entre arquivos diferentes (`new_path != old_path`) viram pares candidatos.
+4. Teste com fixture: cria função A em arquivo X, commita, move pra arquivo Y + refatora.
+5. PR + merge.
 
-(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 4`.)
+(Detalhes em `PLANO-SPRINT-MINERACAO.md §4 Semana 1 Dia 5`.)
 
 ### Branch / PR ativo
 
-(nenhum — Dia 3 mesclado via PR #24)
+(nenhum — Dia 4 mesclado via PR #25)
 
 ### Pendências / bloqueadores
 
@@ -151,6 +150,37 @@ Fontes: 35 repos minerados com sucesso (hypothesis falhou no clone por falta de 
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 5 — 2026-05-20 (Dia 4 — C5a mine_pr + C5b require_keyword)
+
+**Duração estimada**: ~30 min.
+**Dia do sprint**: 4 de 21.
+**Modo**: overnight / auto-mode.
+
+**Atividade**:
+- C5b — `require_keyword: bool = True` adicionado em `mine()`. Default preserva comportamento; quando `False`, pula `matched_keywords()` no loop.
+- C5a — `mine_pr(repo_url, output_path, merge_commit_shas, ...)` adicionada. Thin wrapper sobre `mine_specific_commits` (Dia 3) com `only_no_merge=False` e `source="mined_pr"`. `mine_specific_commits` ganhou kw `only_no_merge: bool = True` para suportar o caso PR.
+- `tests/test_minerador_pr_mode.py`: 7 testes (3 require_keyword, 4 mine_pr). Fixture local com squash merge valida que mine_pr processa o PR como diff único.
+- Smoke em flask/click/requests deferido (alto custo de rede overnight; testes unitários cobrem correção; yield delta será medido no mass mine #2 do Dia 12).
+- PR #25 criado, mesclado via squash (commit `3f0c7fc`).
+
+**Resultado**:
+- ✓ `mine()` aceita `require_keyword=False` — destrava mineração em janelas curtas (será usado pelo Dia 10-11 C2 PR mining).
+- ✓ `mine_pr()` disponível — pronto para o pipeline GraphQL do Dia 10-11 popular `merge_commit_shas`.
+- ✓ `pytest tests/ -q` → **168 passing** (161 + 7).
+- ✓ Os 3 caminhos do minerador agora prontos: keyword-mine (`mine`), commit-list (`mine_specific_commits`), PR-mode (`mine_pr`).
+
+**Bloqueadores**:
+- Nenhum.
+
+**Próxima ação**:
+- **Dia 5** — C5c.1 file rename tracking. Tratar `RENAME` em `extract_candidates`.
+
+**Notas**:
+- Decisão: `mine_pr` não resolve PR → SHA. O caller (futuro runner do Dia 10-11) faz a resolução via `gh pr view <N> --json mergeCommit.oid`. Isso mantém o minerador puro e testável offline.
+- Fixture do teste mine_pr usa squash merge (`git merge --squash`) — modo mais comum em PRs GitHub. True merges (`--no-ff`) também funcionam (PyDriller diffa contra primeiro parent), mas o caso de teste mais útil é o squash.
 
 ---
 
