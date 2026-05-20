@@ -1,7 +1,11 @@
 """Testes do schema unificado — `core/schema.py`.
 
-Foco: o `id` gerado por `_fill_id()` (F4 — o hash deve incluir `smell_type`).
+Foco: o `id` gerado por `_fill_id()` (F4 — o hash deve incluir `smell_type`)
+e o campo `source` (D5 — proveniência do par para separar train/test).
 """
+import pytest
+from pydantic import ValidationError
+
 from core.schema import RefactoringPair
 
 # Núcleo de par idêntico, reutilizado entre os casos.
@@ -39,3 +43,29 @@ def test_id_difere_quando_o_codigo_muda():
 def test_id_explicito_e_preservado():
     p = RefactoringPair(smell_type="R1", id="id-fixo-123", **_BASE)
     assert p.id == "id-fixo-123"
+
+
+# --- D5: campo `source` (proveniência do par) ---
+
+def test_source_default_e_mined_commit():
+    """Sem `source` explícito, o default é `mined_commit` — preserva
+    compatibilidade com fixtures antigas e os 400 pares minerados antes
+    do sprint."""
+    p = RefactoringPair(smell_type="R1", **_BASE)
+    assert p.source == "mined_commit"
+
+
+def test_source_aceita_outros_valores():
+    """Os 4 valores válidos correspondem aos Caminhos do sprint: commit
+    individual, PR colapsado (C2), commit adjacente a oracle (C3),
+    tradução Java→Python (C4)."""
+    for value in ("mined_commit", "mined_pr", "adjacent_oracle", "translated_java"):
+        p = RefactoringPair(smell_type="R1", source=value, **_BASE)
+        assert p.source == value
+
+
+def test_source_invalido_rejeitado():
+    """Pydantic rejeita valores fora do Literal — guard contra typos
+    silenciosos que poderiam misturar train e test."""
+    with pytest.raises(ValidationError):
+        RefactoringPair(smell_type="R1", source="foobar", **_BASE)

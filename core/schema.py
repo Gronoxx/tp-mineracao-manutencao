@@ -63,6 +63,16 @@ class RefactoringPair(BaseModel):
     partial: bool = False
     n_functions_after: Optional[int] = None
 
+    # --- proveniência do registro (D5 — sprint de mineração) ---
+    # Separa pares minerados do nosso pipeline (train) de oracles externos
+    # (held-out test) e variantes (PR-collapsed, adjacent, Java→Python).
+    source: Optional[Literal[
+        "mined_commit",     # nosso pipeline em commit individual (default)
+        "mined_pr",         # nosso pipeline em PR colapsado (C2)
+        "adjacent_oracle",  # nosso pipeline em commit citado por oracle (C3)
+        "translated_java",  # tradução de SWE-Refactor/MaRV (C4)
+    ]] = "mined_commit"
+
     # --- preenchido pelo curador (estágio 4) ---
     review: Optional[ReviewBlock] = None
 
