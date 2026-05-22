@@ -56,7 +56,29 @@ automaticamente.
 
 ---
 
-## G1 — Calibração de threshold AST cross-file 🚧 PENDENTE (alta prioridade)
+## G1 — Calibração de threshold AST cross-file ❌ TENTADA (Sessão 13) — cross-file rende ZERO
+
+**Tentativa (2026-05-21)**: `scripts/calibrate_cross_file.py` rodou
+`cross_file_threshold` em {0.5, 0.6, 0.7, 0.8, 0.9}, primeiro em 3 repos
+pequenos (flask/click/requests), depois em 5 grandes (numpy/pandas/sympy/
+scipy/matplotlib). **Resultado: 0 pares cross_file em TODAS as
+configurações.** Após 10h, Fase C abortada.
+
+**Conclusão**: o detector cross-file atual exige funções gone+fresh no MESMO
+commit com AST similarity ≥0.5. Refatorações cross-file reais têm
+similaridade ~0.3 e ocorrem multi-commit. O threshold 0.7 sugerido pelo
+plano é alto demais — mas mesmo 0.5 rende zero.
+
+**Decisão**: cross-file desligado (`None`) indefinidamente. Investigação
+dedicada deferida para Dia 13 (testar thresholds <0.5, pareamento
+multi-commit, validar contra ground truth). Não bloqueia o sprint — R3/R4/R5
+já passaram o mínimo via outros caminhos.
+
+Detalhes: `logs/auto_session_issues.md` Issue #3, `reports/SESSAO-MINERACAO-MASSIVA-2026-05.md` §3.4.
+
+---
+
+## G1 — Calibração de threshold AST cross-file (descrição original) 🚧 PENDENTE (alta prioridade)
 
 **O que é:** rodar o pipeline cross-file (`mine(cross_file_threshold=X)`) em
 amostra com X variando em {0.5, 0.6, 0.7, 0.8, 0.9}, medir precision em cada

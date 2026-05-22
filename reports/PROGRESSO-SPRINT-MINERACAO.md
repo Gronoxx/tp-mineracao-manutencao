@@ -44,41 +44,41 @@ qualidade pendentes com decisões padrão para o Dia 11. **G0 já executado**
 
 ### Onde estamos
 
-- **Data da última atualização**: 2026-05-20 (Sessão 12 — Dia 11 ✓)
-- **Dia do sprint**: 11 ✓ — C2 integração executada nos 36 repos curados (7 com PRs labeled refactor); G3 smoke rodado.
+- **Data da última atualização**: 2026-05-22 (Sessão 13 — Dia 12 ✓, esgotamento dos curados)
+- **Dia do sprint**: 12 ✓ — esgotamento massivo dos 36 repos curados (Fases A+B+D). Cross-file (Fase C) abortada.
 - **Semana**: 2
-- **Fase**: Execução — esgotamento dos 36 repos curados antes de avançar para tier-2.
+- **Fase**: Execução — esgotamento dos curados COMPLETO. Próximo: análise (Dia 13) + checkpoint R5 (Dia 14) + C4 Java translation (Dia 15-16) para fechar R1.
 
 ### Yield atual por smell
 
-Pós-Dia 11 (C2 mine_pr nos 7 repos curados com PRs labeled): +7 pares `mined_pr` em `data/raw/` (pandas=5, scrapy=2).
+Pós-Dia 12 (Fases A+B+D): **432 → 4.400 pares** (10,2×). Detalhes em `reports/SESSAO-MINERACAO-MASSIVA-2026-05.md`.
 
-| Smell | mined_commit | adjacent_oracle | mined_pr | Total | Min viável | % do min | Status |
-|---|---:|---:|---:|---:|---:|---:|---|
-| R1 Extract Method | 41 | 1 | 2 | 44 | 800 | 6% | ✗ |
-| R2 Parameter Object | 53 | 7 | 1 | 61 | 600 (140 c/ r=8 attn) | 10% (44%) | ✗ |
-| R3 Named Constant | 129 | 12 | 2 | 143 | 200 | 72% | borderline ↑ |
-| R4 Guard Clauses | 127 | 4 | 2 | 133 | 400 | 33% | ✗ |
-| R5 Remove Dead Code | 50 | 1 | 0 | 51 | 300 | 17% | ✗ |
-| **Total** | **400** | **25** | **7** | **432** | | | |
+| Smell | Início (Dia 11) | **Final (Dia 12)** | Min viável | % do min | Status |
+|---|---:|---:|---:|---:|---|
+| R1 Extract Method | 44 | **439** | 800 | 55% | aguarda C4 (Dia 15-16) |
+| R2 Parameter Object | 61 | **619** | 600 (140 c/ r=8) | **103%** | ✓ |
+| R3 Named Constant | 143 | **1.376** | 200 | 688% | ✓✓✓ |
+| R4 Guard Clauses | 133 | **1.294** | 400 | 324% | ✓ |
+| R5 Remove Dead Code | 51 | **672** | 300 | 224% | ✓ |
+| **Total** | **432** | **4.400** | | | |
+
+Por source: mined_commit=4.375, adjacent_oracle=22, mined_pr=3, cross_file=0.
+
+**4 de 5 smells passaram o mínimo viável.** Apenas R1 pendente (será fechado por C4).
 
 ### Próxima ação concreta
 
-**Dia 12 (esgotamento dos 36 curados — Fase A)** — Expandir janela temporal:
+**Dia 13 — Análise + fixes** (ver `reports/SESSAO-MINERACAO-MASSIVA-2026-05.md §7):
 
-1. Branch `feature/c2-temporal-expansion`.
-2. Mudar `SINCE=datetime(2015,1,1)` em `extracao/execucao/mineracao.py` (atualmente `2020-01-01`).
-3. Re-rodar mass mine nos 36 curados com kw=True (default). Yield esperado: +100-300 pares.
-4. G4 quality check pós-rodada.
-5. PR + merge.
-
-Após Fase A: avaliar Fase B (kw=False mass mine, alavanca ~19x, custo várias horas) ou Fase C-calibração (G1+G2).
-
-(Detalhes em estratégia de esgotamento — Sessão 12 do log.)
+1. **Fix de cache de clones** nos runners (`exhaust_curated_mine.py`, `c5_first_years_mine.py`): adicionar `clone_repo_to` para evitar re-clone (Issue #5 — Fase D levou 23h por re-clonar tudo).
+2. **Retry numpy/Pillow** first-years (falharam no clone — Issue #5).
+3. **Análise estatística completa** do dataset + relatório de yield (`reports/2026-XX-XX-mine-pos-c5.md` do plano §4 Dia 13).
+4. **Investigação cross-file** dedicada (threshold <0.5, multi-commit) — timeboxed (Issue #3).
+5. **G4 holístico otimizado** (paralelizar APTED ou cachear AST parse).
 
 ### Branch / PR ativo
 
-`feature/c2-mass-mine-pr` — PR a abrir após merge do PROGRESSO. Adiciona `scripts/c2_mass_mine_pr.py` (integração `pr_list.json` → `mine_pr()` agrupada por repo).
+`feature/exhaust-curated-runner` — PR com 3 scripts da Sessão 13: `exhaust_curated_mine.py`, `c5_first_years_mine.py`, `calibrate_cross_file.py`. (PR #33 do c2_mass_mine_pr.py já mesclado no Dia 11.)
 
 ### Pendências para retomar com supervisão
 
@@ -128,6 +128,10 @@ Decisões tomadas DURANTE a execução do sprint (≠ decisões do plano, que es
 | 2026-05-20 | Dia 11: cap qualitativo (36 repos curados) em vez de numérico no c2 mass mine | Mass search retornou 1.457 repos / 12.148 PRs; rodar tudo = 100s GB + horas; user pediu "maduros e confiáveis" | Reduziu a 7 repos / 201 PRs (interseção curados ∩ pr_list); yield 7 pares 100% CLEAN |
 | 2026-05-20 | Dia 11: estratégia de esgotamento dos 36 curados antes de tier-2 | Maximizar uso dos repos já validados; tier-2 (home-assistant 2.905 PRs etc.) entra depois | Fases A→B→C com decisão informada por yield real |
 | 2026-05-20 | G3 smoke rodado e PRECISION validada via G4 | Decisão de `require_keyword=False` no mass mine #2 estava pendente; G3 mediu delta ~19x e G4 mediu FAIL rate 5-9% | Habilita Fase B do esgotamento como opção informada; mantém kw=True como default até decisão de Dia 12 |
+| 2026-05-21 | Dia 12: ativar `require_keyword=False` na Fase B em escala | G3 (Dia 11) confirmou FAIL rate só 5-9%; risco aceitável | +1.976 pares (maior salto da sessão) |
+| 2026-05-21 | Fase C (cross-file) ABORTADA após 10h | Yield ZERO em todos thresholds, mesmo em repos grandes; detector exige same-commit + similaridade ≥0.5, refator real é multi-commit + sim ~0.3 | Cross-file deferido p/ investigação dedicada Dia 13; contribuição "miner cross-file" existe no código mas yield prático=0 |
+| 2026-05-21 | Dia 12: minerar primeiros 7 anos de cada repo (Fase D) | Premissa do grupo: refator (esp. R1) mais comum no início do projeto | +1.314 pares; premissa confirmada (celery/matplotlib/django renderam dezenas) |
+| 2026-05-22 | Aceitar G4 amostral estratificado em vez de holístico | G4 full em 4.400 pares leva 3h+ (APTED O(n²)); amostra de 500 (100/smell) dá estimativa rápida | Gate validado a 88% CLEAN, 2% FAIL sem custo de horas |
 
 ---
 
@@ -205,9 +209,51 @@ Pares `mined_pr` e `cross_file` permanecem em 0 — a infraestrutura está pront
 
 Dia 8 — C5c.3 identifier overlap mitigation. Combate FP em cross-file matching adicionando filtro Jaccard sobre nomes de identificadores livres + funções chamadas.
 
-### Snapshot Fim Semana 2 (Dia 14 — checkpoint crítico R5)
+### Snapshot Fim Semana 2 (Dia 12 — pós esgotamento dos curados)
 
-*(a preencher após snapshot)*
+**Sessão 13 (autônoma, ~25h wall-clock) executou Fases A+B+D. Fase C abortada.**
+
+#### Yield em `data/raw/` por smell × source
+
+| Smell | mined_commit | adjacent_oracle | mined_pr | cross_file | Total | Min viável | % do min |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| R1 Extract Method | 437 | 1 | 1 | 0 | 439 | 800 | 55% |
+| R2 Parameter Object | 615 | 3 | 1 | 0 | 619 | 600 | 103% |
+| R3 Named Constant | 1.366 | 9 | 1 | 0 | 1.376 | 200 | 688% |
+| R4 Guard Clauses | 1.287 | 7 | 0 | 0 | 1.294 | 400 | 324% |
+| R5 Remove Dead Code | 670 | 2 | 0 | 0 | 672 | 300 | 224% |
+| **Total** | **4.375** | **22** | **3** | **0** | **4.400** | | |
+
+(adjacent_oracle caiu 25→22 e mined_pr caiu 7→3 por idempotência — pares
+sobrescritos por mined_commit, conteúdo preservado. Issue #4.)
+
+#### Contribuição por fase
+
+| Fase | Estratégia | Yield | Tempo |
+|---|---|---:|---|
+| A | Expansão temporal 2015-2019, kw=True | +678 | 80 min |
+| B | kw=False mass mine 2020-2024 | +1.976 | 132 min |
+| C | Cross-file (calibração + mineração) | 0 (ABORTADA) | 10h |
+| D | First-7-years, 26 repos, kw=False | +1.314 | 23h |
+
+#### Quality check (gate G4)
+
+Amostra estratificada (500 pares, 100/smell): **88,2% CLEAN, 9,8% WARN, 2,0% FAIL.**
+
+#### Checkpoint R5 (antecipado do Dia 14)
+
+R5 = 672 pares ≥ 300 → **mantém adapter cheio (r=16 full, 18,46M params)**. ✓
+Decisão do checkpoint crítico resolvida com folga.
+
+#### Documento para o grupo
+
+`reports/SESSAO-MINERACAO-MASSIVA-2026-05.md` — explicação completa da sessão,
+cada script, resultados, problemas. Autocontido.
+
+#### Repos e janela
+
+38 repos únicos (35 curados + 3 PyRef). Criados 2009-2019 (idade média 13a).
+Janela: 2015-2024 (Fases A/B) + primeiros anos pré-2015 de 26 repos (Fase D).
 
 ### Snapshot Final (Dia 21)
 
@@ -238,6 +284,45 @@ Dia 8 — C5c.3 identifier overlap mitigation. Combate FP em cross-file matching
 >
 > **Notas**:
 > - (qualquer coisa que vale registrar — surprise, ajuste de threshold, observação)
+
+---
+
+### Sessão 13 — 2026-05-20 a 2026-05-22 (Dia 12 — esgotamento massivo dos curados)
+
+**Duração estimada**: ~25h wall-clock (maioria background; ~10h queimados na Fase C abortada).
+**Dia do sprint**: 12 de 21.
+**Modo**: AUTO declarado pelo Gustavo (rodar fases sequencialmente, registrar issues, resolver sozinho).
+
+**Atividade**:
+- Estratégia de esgotamento dos 36 repos curados em 4 fases (A→B→C→D).
+- `scripts/exhaust_curated_mine.py` (NEW): runner parametrizável (since/to/require_keyword/cross_file_threshold via CLI) reusando `REPOS` de `mineracao.py`.
+- **Fase A** — expansão temporal 2015-2019, kw=True: +678 pares (80 min).
+- **Fase B** — kw=False mass mine 2020-2024: +1.976 pares (132 min). Maior salto.
+- `scripts/calibrate_cross_file.py` (NEW): calibração G1+G2 do cross_file_threshold.
+- **Fase C** — cross-file: ABORTADA após 10h (0 pares em todos thresholds, mesmo repos grandes). Issue #3.
+- `scripts/c5_first_years_mine.py` (NEW): minera primeiros 7 anos de cada repo (truncado em 2014-12-31).
+- **Fase D** — first-7-years, 26 repos (12 pulados por criados ≥2015), kw=False: +1.314 pares (23h por re-clone — Issue #5). numpy/Pillow falharam.
+- G4 amostral estratificado após Fases B e D: ~88% CLEAN, ~2% FAIL.
+- `logs/auto_session_issues.md` (NEW): 5 issues documentados.
+- `reports/SESSAO-MINERACAO-MASSIVA-2026-05.md` (NEW): documento explicativo para o grupo.
+
+**Resultado**:
+- ✓ Dataset **432 → 4.400 pares (10,2×)**.
+- ✓ **4 de 5 smells acima do mínimo viável** (R2=103%, R3=688%, R4=324%, R5=224%). R1=55% (aguarda C4).
+- ✓ Checkpoint R5 antecipado resolvido: 672 ≥ 300 → adapter cheio mantido.
+- ✓ G4 amostral validou qualidade (88% CLEAN, 2% FAIL).
+- ✓ 3 scripts novos + documento de grupo + 5 issues registrados.
+
+**Bloqueadores**:
+- numpy/Pillow first-years perdidos (clone falhou — disco/re-clone). Retry no Dia 13.
+
+**Próxima ação**:
+- **Dia 13**: fix de cache de clones nos runners, retry numpy/Pillow, análise estatística, investigação cross-file dedicada.
+
+**Notas**:
+- 2 erros custaram tempo: Fase C (10h sem retorno — cross-file rende 0 em produção) e Fase D (23h vs ~2h por re-clone). Ambos com root cause documentado e fix planejado.
+- Decisão de cap qualitativo (36 curados, não os 1.457 do pr_search) veio do Gustavo no Dia 11 e guiou toda a sessão.
+- Premissa do grupo (refator nos primeiros anos) confirmada empiricamente na Fase D.
 
 ---
 
