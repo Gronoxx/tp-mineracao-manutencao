@@ -72,6 +72,7 @@ class RefactoringPair(BaseModel):
         "adjacent_oracle",  # nosso pipeline em commit citado por oracle (C3)
         "translated_java",  # tradução de SWE-Refactor/MaRV (C4)
         "cross_file",       # pareamento cross-file via AST similarity (C5c.2)
+        "rule_id_mined",    # commit que corrige regra de linter por rule-ID (R2/R3/R4)
     ]] = "mined_commit"
 
     # --- preenchido pelo curador (estágio 4) ---

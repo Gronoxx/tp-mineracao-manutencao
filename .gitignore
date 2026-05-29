@@ -19,6 +19,11 @@ data/**
 !data/test/
 !data/test/**
 
+# Saídas dos pilotos de mineração (dados minerados — mesma política de data/**;
+# vão para tp-es2-dataset, não para o repo de código).
+pilot_out/
+rule_mining_out/
+
 # Logs de execução das minerações (reproduzíveis, grandes — não versionar).
 # Exceção: o log de issues da sessão É documentação e SÃO versionados.
 logs/*.log
