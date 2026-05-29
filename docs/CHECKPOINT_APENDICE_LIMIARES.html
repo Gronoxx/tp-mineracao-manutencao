@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apêndice — Limiares usados (com prova) · Checkpoint</title>
+<style>
+  :root{
+    --bg:#f7f6f3; --panel:#ffffff; --ink:#1c2230; --muted:#5c6573;
+    --line:#e4e2db; --accent:#3a4ee0; --accent-soft:#eef0ff;
+    --good:#1f8a52; --good-soft:#e6f5ec; --warn:#b4690e; --warn-soft:#fdf1e0;
+    --bad:#c23434; --bad-soft:#fbeaea; --neutral:#6b7280; --neutral-soft:#eef0f3;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  main{max-width:980px;margin:0 auto;padding:34px 40px 110px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.85em;background:#eef0f3;padding:.1em .4em;
+    border-radius:4px;color:#2a3550}
+  .back{font-size:13px;color:var(--muted);margin-bottom:18px;display:inline-block}
+  .kicker{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--accent);font-weight:700}
+  h1{font-family:var(--serif);font-size:34px;line-height:1.12;margin:.28em 0 .15em}
+  .sub{font-size:17px;color:var(--muted);max-width:66ch;margin:0}
+  .mast{border-bottom:2px solid var(--ink);padding-bottom:22px;margin-bottom:8px}
+  h2{font-family:var(--serif);font-size:24px;margin:44px 0 6px}
+  .tbl{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .tbl th{background:#f0f1f4;text-align:left;padding:9px 12px;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--line)}
+  .tbl td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl tr:hover td{background:#fafafa}
+  .smell{font-weight:700;font-family:var(--mono);color:var(--accent)}
+  .val{font-family:var(--mono);font-weight:700;font-size:13px}
+  .src{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .b{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
+  .b.good{background:var(--good-soft);color:var(--good)}
+  .b.warn{background:var(--warn-soft);color:var(--warn)}
+  .b.bad{background:var(--bad-soft);color:var(--bad)}
+  .b.neu{background:var(--neutral-soft);color:var(--neutral)}
+  .callout{border-radius:12px;padding:15px 19px;margin:16px 0;font-size:14px}
+  .callout .h{font-weight:700;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .callout.key{background:var(--accent-soft);border:1px solid #cdd3ff}
+  .callout.key .h{color:var(--accent)}
+  .callout.note{background:#fff;border:1px solid var(--line)}
+  .callout.warn{background:var(--warn-soft);border:1px solid #f0d9b5}
+  .callout.warn .h{color:var(--warn)}
+  ul.tight{margin:.4em 0;padding-left:1.2em}
+  ul.tight li{margin:.3em 0;font-size:13.8px}
+  footer{border-top:1px solid var(--line);margin-top:48px;padding-top:18px;
+    font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="CHECKPOINT_PROJETO.html">← Voltar ao checkpoint principal</a>
+  <header class="mast">
+    <div class="kicker">Apêndice do Checkpoint — TP Eng. de Software II · UFMG</div>
+    <h1>Limiares usados no pipeline</h1>
+    <p class="sub">Todos os cortes numéricos de detecção, mineração, quality gate e tradução, com a fonte exata (arquivo:linha). Cada valor foi lido do código-fonte em 2026-05-26 — nenhum é estimado.</p>
+  </header>
+
+  <div class="callout note">
+    <p class="h">Como ler</p>
+    <p>Cada linha cita <code>arquivo:linha</code> verificável. As tabelas separam <b>constantes de código</b> (provadas no fonte) de <b>configuração por corrida</b> (parâmetro, não constante fixa) e de itens <b>planejados mas não implementados</b>. Caminhos relativos a <code>smoke_c4/repo/</code> salvo indicação.</p>
+  </div>
+
+  <h2>1. Detectores de smell <span class="b good">constantes de código</span></h2>
+  <table class="tbl">
+    <thead><tr><th>Smell</th><th>Constante</th><th>Valor</th><th>Regra de disparo</th><th>Fonte</th></tr></thead>
+    <tbody>
+      <tr><td class="smell">R1</td><td>LINE_THRESHOLD</td><td class="val">30</td><td>NLOC &gt; 30</td><td class="src">detectores/long_method.py:5,30</td></tr>
+      <tr><td class="smell">R1</td><td>CCN_THRESHOLD</td><td class="val">10</td><td>…OU complexidade ciclomática &gt; 10</td><td class="src">detectores/long_method.py:7,31</td></tr>
+      <tr><td class="smell">R1</td><td>STMT_THRESHOLD</td><td class="val">15</td><td><b>definido mas NÃO usado</b> em <code>detect()</code> (comentário cita Pylint R0915 = 50)</td><td class="src">detectores/long_method.py:6</td></tr>
+      <tr><td class="smell">R2</td><td>THRESHOLD</td><td class="val">5</td><td>nº de parâmetros &gt; 5 (dispara com 6+)</td><td class="src">detectores/long_param_list.py:4,12</td></tr>
+      <tr><td class="smell">R3</td><td>NUMERIC_WHITELIST</td><td class="val">{0, 1, 2}</td><td>≥1 literal numérico fora da whitelist e não-isento (isenções: RHS de atribuição nomeada e defaults de parâmetro)</td><td class="src">detectores/magic_numbers.py:25,93</td></tr>
+      <tr><td class="smell">R4</td><td>THRESHOLD</td><td class="val">3</td><td>profundidade de aninhamento &gt; 3 (dispara com 4+)</td><td class="src">detectores/deep_nesting.py:5,39</td></tr>
+      <tr><td class="smell">R5</td><td>—</td><td class="val">&gt; 0</td><td>≥1 statement inalcançável (após return/raise/break/continue) OU ≥1 variável local atribuída e nunca lida</td><td class="src">detectores/dead_code.py:245</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--muted)"><b>R5, nota histórica:</b> a versão anterior usava <code>vulture --min-confidence 80</code>; esse corte de 80% foi <b>abandonado</b> porque fazia o oposto do pretendido (descartava locais mortos, disparava só em parâmetros). A versão atual é análise AST sem limiar de confiança (docstring em <code>dead_code.py:203–225</code>).</p>
+
+  <h2>2. Pipeline de mineração <span class="b good">constantes de código</span></h2>
+  <table class="tbl">
+    <thead><tr><th>O quê</th><th>Valor</th><th>Significado</th><th>Fonte</th></tr></thead>
+    <tbody>
+      <tr><td>PARTIAL_REDUCTION_MIN</td><td class="val">0.1</td><td>Redução mínima de magnitude p/ aceitar par como <code>partial=True</code> (modo E1). Sweep 2026-05-19: 0.5 não pega nada; 0.0 é ruído</td><td class="src">extracao/mineracao/minerador.py:183</td></tr>
+      <tr><td>Modo estrito (default)</td><td class="val">None</td><td><code>partial_threshold=None</code> → só pares "fires-before-AND-not-after"</td><td class="src">minerador.py:189,225</td></tr>
+      <tr><td>cross-file similarity</td><td class="val">0.7</td><td>Default do matching cross-file (APTED); Fase C calibrou {0.5–0.9} e foi <b>abortada</b> (0 pares)</td><td class="src">minerador.py:326,392</td></tr>
+      <tr><td>identifier_overlap</td><td class="val">0.0</td><td>Sobreposição mínima de identificadores no cross-file</td><td class="src">minerador.py:327</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Quality gate estático <span class="b good">constantes de código</span></h2>
+  <table class="tbl">
+    <thead><tr><th>Constante</th><th>Valor</th><th>Efeito</th><th>Fonte</th></tr></thead>
+    <tbody>
+      <tr><td>AST_SIM_FAIL_BELOW</td><td class="val">0.10</td><td><b>FAIL</b> se similaridade AST &lt; 0.10 (pareamento errado)</td><td class="src">scripts/quality_check_pairs.py:46</td></tr>
+      <tr><td>AST_SIM_WARN_BELOW</td><td class="val">0.30</td><td><b>WARN</b> se 0.10 ≤ sim &lt; 0.30 (mudança drástica)</td><td class="src">scripts/quality_check_pairs.py:47</td></tr>
+      <tr><td>MIN_LINES_WARN</td><td class="val">3</td><td><b>WARN</b> se before/after &lt; 3 linhas (trivial)</td><td class="src">scripts/quality_check_pairs.py:48</td></tr>
+      <tr><td>(redução trivial)</td><td class="val">0.05</td><td><b>WARN</b> se redução &lt; 5% (mudança trivial)</td><td class="src">scripts/quality_check_pairs.py:194</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Tier B / Tradução C4 <span class="b good">constantes de código</span></h2>
+  <table class="tbl">
+    <thead><tr><th>O quê</th><th>Valor</th><th>Significado</th><th>Fonte</th></tr></thead>
+    <tbody>
+      <tr><td>Filtro estático</td><td class="val">NLOC&gt;30 ou CC&gt;10</td><td>Reusa o detector R1 (importa as constantes)</td><td class="src">smoke_c4/filter_r1.py:14,87</td></tr>
+      <tr><td>Juiz Gemma: --min-py-lines</td><td class="val">10</td><td>before precisa de ≥10 linhas Python p/ ser considerado</td><td class="src">smoke_c4/llm_judge.py:74–75</td></tr>
+      <tr><td>Re-tradução: alvo</td><td class="val">&gt;50L (Java)</td><td>Só re-traduz pares cujo before Java tinha &gt;50 linhas</td><td class="src">smoke_c4/fix_after_gemma.py:5</td></tr>
+      <tr><td>Re-tradução: guideline</td><td class="val">≤20L/helper</td><td>Instrução no prompt: cada helper ≤20 linhas (não é detecção)</td><td class="src">smoke_c4/fix_after_gemma.py:42</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Configuração por corrida <span class="b warn">não é constante fixa</span></h2>
+  <table class="tbl">
+    <thead><tr><th>O quê</th><th>Valor</th><th>Observação</th><th>Fonte</th></tr></thead>
+    <tbody>
+      <tr><td>Caps por smell</td><td class="val">R1:4000 · R2:3500 · R3:1500 · R4:2500 · R5:2000</td><td>Parâmetro <code>caps</code> de <code>mine()</code> para a corrida de 2026-05-20 — não um corte fixo do código (<code>minerador.py:318</code> só consome o dict)</td><td class="src">reports/2026-05-20-mine-resultado.md</td></tr>
+      <tr><td>Variante NLOC&gt;20 (C4)</td><td class="val">20</td><td>Dataset alternativo <code>c4_valid_pairs_nloc20.json</code> (Python ~1.5× mais conciso que Java); documentado, não um constante localizado no código</td><td class="src">DECISOES_PROJETO.md / memória de projeto</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Planejado — NÃO implementado <span class="b bad">não usar como limiar vigente</span></h2>
+  <table class="tbl">
+    <thead><tr><th>O quê</th><th>Valor proposto</th><th>Status</th><th>Fonte</th></tr></thead>
+    <tbody>
+      <tr><td>Filtro diff-atomic</td><td class="val">≤2 arquivos · diff ≤50L</td><td>Marcado "a implementar" — <b>não está no código</b></td><td class="src">DECISOES_PROJETO.md §2</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout key">
+    <p class="h">★ Onde está a alavanca do R2 (alavanca A1)</p>
+    <p>O detector de R2 dispara com <b>&gt; 5 parâmetros</b> (6+). Onde a literatura põe o corte:</p>
+    <ul class="tight">
+      <li><b>Fowler:</b> nenhum número fixo (deliberadamente vago — "não há regra rígida").</li>
+      <li><b>Catálogos</b> (refactoring.guru): "mais de 3 ou 4 parâmetros".</li>
+      <li><b>Pylint R0913 / Ruff PLR0913:</b> <code>max-args = 5</code> → dispara com &gt;5 (6+). <b>É exatamente o limiar atual.</b></li>
+      <li><b>SonarQube S107:</b> mais permissivo (≈ &gt;7).</li>
+    </ul>
+    <p>Ou seja, o <code>&gt;5</code> atual <b>já está alinhado ao Pylint</b>. Baixar para <code>THRESHOLD = 4</code> (dispara com 5+) é defensável pelos catálogos ("mais de quatro") e eleva o volume de candidatos/yield, <b>mas torna o detector mais estrito que o Pylint</b> — é um tradeoff documentável, não um ganho grátis. Se baixar, ir para <code>&gt;4</code> (não <code>&gt;3</code>) e justificar a escolha no paper.</p>
+  </div>
+
+  <footer>
+    <p>Apêndice gerado em 2026-05-26 por leitura direta do código em <code>smoke_c4/repo/</code> e <code>smoke_c4/</code>. Cada valor é citado por <code>arquivo:linha</code> e foi confirmado no fonte — nenhum limiar foi estimado ou inferido.</p>
+    <p><a href="CHECKPOINT_PROJETO.html">← Voltar ao checkpoint principal</a></p>
+  </footer>
+</main>
+</body>
+</html>
