@@ -10,6 +10,9 @@ venv/
 env/
 .env/
 ENV/
+
+.env
+
 # Dados minerados (reproduziveis — nao versionar; ver tp-es2-dataset).
 # Usamos `data/**` (não `data/`) para permitir re-inclusão de subdiretórios:
 # o git não re-inclui arquivos cujo diretório-pai foi ignorado.

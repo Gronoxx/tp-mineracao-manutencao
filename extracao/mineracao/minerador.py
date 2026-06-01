@@ -187,7 +187,7 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
                 parent_commit: str | None, commit_msg: str,
                 msg_keywords: list[str], filename: str,
                 partial_threshold: float | None = None,
-                source: str = "mined_commit") -> list[RefactoringPair]:
+                source: str = "mined_commit", threshold = {}) -> list[RefactoringPair]:
     """Estágio 3 — roda os 5 detectores; emite um RefactoringPair por smell
     cujo detector dispara no `before`.
 
@@ -208,8 +208,10 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
         # logamos (corridas de produção são longas; um único bug não pode
         # custar horas de mineração).
         try:
-            before_res = detect(bf)
-            after_res = detect(af)
+            valor_threshold = threshold.get(smell_name)
+            
+            before_res = detect(bf, valor_threshold)
+            after_res = detect(af, valor_threshold)
         except Exception as exc:
             print(f"  WARN: detector {smell_name!r} falhou em "
                   f"{candidate.get('function_name')!r}: "
@@ -249,6 +251,8 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
             after_code = af.source + "\n\n\n" + "\n\n\n".join(helpers)
             n_after = 1 + len(helpers)
 
+        t_record = valor_threshold if valor_threshold is not None else "N/A"
+
         records.append(RefactoringPair(
             before_code=bf.source,
             after_code=after_code,
@@ -270,6 +274,8 @@ def verify_pair(candidate: dict, *, repo: str, commit_hash: str,
             partial=is_partial,
             n_functions_after=n_after,
             source=source,
+            threshold=t_record,
+            avaliacao=0
         ))
     return records
 
@@ -297,17 +303,37 @@ def _load_existing(path: Path) -> dict[str, dict]:
 
 
 def _merge_write(output_path: Path, by_smell: dict[str, dict[str, dict]]) -> dict:
-    """Escreve cada `<smell>.jsonl` mesclando com o conteúdo já em disco (F1).
-
-    Padrão load → merge por `id` → write (análogo a `save_review()` do curador):
-    registros de execuções anteriores são preservados; a execução atual tem
-    precedência em caso de `id` repetido. `counts` reflete só o que ESTA
-    execução encontrou (não o total acumulado em disco)."""
     counts: dict[str, int] = {}
     for smell_code, recs in by_smell.items():
         out_file = output_path / f"{CODE_TO_NAME[smell_code]}.jsonl"
-        merged = _load_existing(out_file)
-        merged.update(recs)
+        merged = _load_existing(out_file) # Carrega o arquivo atual do disco
+        
+        for rid, new_rec in recs.items():
+            if rid not in merged:
+                # Cenário 1: Não existe no arquivo -> Cria um novo registro completo
+                merged[rid] = new_rec
+            else:
+                # Cenários 2 e 3: O par já existe no arquivo
+                existing_rec = merged[rid]
+                
+                # Captura o threshold que acabou de ser testado nesta rodada
+                current_t = new_rec["thresholds"][0]
+                
+                # Se o threshold testado não estiver na lista do registro antigo, adiciona
+                if "thresholds" not in existing_rec:
+                    existing_rec["thresholds"] = []
+                
+                if current_t not in existing_rec["thresholds"]:
+                    # Cenário 2: Existe sem o threshold em questão -> Adiciona à lista
+                    existing_rec["thresholds"].append(current_t)
+                # Cenário 3: Existe com o threshold em questão -> Não faz nada (ignora)
+
+                # PROTEÇÃO CRUCIAL: Mantém a avaliação antiga feita pelo site de curadoria
+                # Se o registro no disco já foi avaliado como 1 ou -1, não resetamos para 0
+                if existing_rec.get("avaliacao", 0) == 0:
+                    existing_rec["avaliacao"] = new_rec.get("avaliacao", 0)
+
+        # Escreve de volta no arquivo JSONL atualizado
         with open(out_file, "w", encoding="utf-8") as f:
             for record in merged.values():
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -364,7 +390,8 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
          partial_threshold: float | None = None,
          require_keyword: bool = True,
          cross_file_threshold: float | None = None,
-         identifier_overlap_threshold: float = 0.0) -> dict:
+         identifier_overlap_threshold: float = 0.0,
+         threshold = None) -> dict:
     """Minera um repositório → mescla `<smell>.jsonl` em `output_path`.
 
     Escrita acumulativa: registros já em `output_path` (de execuções
@@ -439,7 +466,7 @@ def mine(repo_url: str, output_path: Path, since=None, to=None,
                     cand, repo=repo_url, commit_hash=commit.hash,
                     parent_commit=parent, commit_msg=commit.msg,
                     msg_keywords=keywords, filename=path,
-                    partial_threshold=partial_threshold,
+                    partial_threshold=partial_threshold, threshold=threshold
                 ):
                     bucket = by_smell.setdefault(rec.smell_type, {})
                     # respeita o teto por smell desta chamada (`caps`)

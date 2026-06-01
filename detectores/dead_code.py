@@ -236,7 +236,7 @@ def _find_unused_vars(fn_source: str) -> list[dict]:
     return unused
 
 
-def detect(fn: FunctionInfo) -> DetectionResult:
+def detect(fn: FunctionInfo, threshold=None) -> DetectionResult:
 
     dead = _find_unreachable(fn.source) + _find_unused_vars(fn.source)
 

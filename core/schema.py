@@ -62,6 +62,10 @@ class RefactoringPair(BaseModel):
     # preserva o comportamento estrito (only-strict pairs nas execuções antigas).
     partial: bool = False
     n_functions_after: Optional[int] = None
+    
+    # --- avaliacao do smell (-1: negativo, 0: nao avaliado. 1: positivo)
+    threshold = "NA"
+    avaliacao: int = 0
 
     # --- proveniência do registro (D5 — sprint de mineração) ---
     # Separa pares minerados do nosso pipeline (train) de oracles externos

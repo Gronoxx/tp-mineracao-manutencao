@@ -2,7 +2,7 @@ import ast
 from .data_structs import FunctionInfo
 from .base import DetectionResult
 
-THRESHOLD = 3  # profundidade > 3 = smell
+DEFAUL_THRESHOLD = 3  # profundidade > 3 = smell
 
 NESTING_NODES = (ast.If, ast.For, ast.While, ast.With, ast.Try,
                  ast.AsyncFor, ast.AsyncWith)
@@ -19,7 +19,7 @@ def _max_depth(node, current=0) -> int:
         
     return max_d
 
-def detect(fn: FunctionInfo) -> DetectionResult:
+def detect(fn: FunctionInfo, threshold=DEFAUL_THRESHOLD) -> DetectionResult:
     
     try:
         tree = ast.parse(fn.source)
@@ -36,7 +36,7 @@ def detect(fn: FunctionInfo) -> DetectionResult:
 
     return DetectionResult(
         smell="deep_nesting",
-        detected=depth > THRESHOLD,
+        detected=depth > threshold,
         confidence=1.0,
-        evidence={"max_depth": depth, "threshold": THRESHOLD},
+        evidence={"max_depth": depth, "threshold": threshold},
     )

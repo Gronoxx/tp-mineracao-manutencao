@@ -85,6 +85,11 @@ SMELLS = tuple(CAP_POR_SMELL)
 # magnitude >= 10%, marcados `partial=True`. Calibrado empiricamente.
 PARTIAL_THRESHOLD = 0.1
 
+THRESHOLDS = {
+    "deep_nesting": 4,
+    "long_param_list": 6,
+    "long_method": {"lines": 40, "ccn": 12}
+}
 
 def _orcamento_repo(total: dict[str, int], repos_restantes: int,
                     cap: dict[str, int] = CAP_POR_SMELL) -> dict[str, int]:
@@ -127,7 +132,8 @@ def main() -> None:
         try:
             counts = mine(repo_url=repo, output_path=OUTPUT,
                           since=SINCE, to=TO, caps=caps,
-                          partial_threshold=PARTIAL_THRESHOLD)
+                          partial_threshold=PARTIAL_THRESHOLD,
+                          threshold=THRESHOLDS)
         except Exception as exc:  # repo morto, clone falhou, etc.
             print(f"  !! FALHA em {nome}: {type(exc).__name__}: {exc}",
                   flush=True)

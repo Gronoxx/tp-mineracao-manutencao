@@ -28,6 +28,7 @@ VALID_STATUS = {"clean", "noisy", "rejected"}
 VALID_CONFIANCA = {"alta", "media", "baixa"}
 # Vereditos que exigem justificativa do revisor (rastreabilidade da curadoria).
 STATUS_EXIGE_JUSTIFICATIVA = {"noisy", "rejected"}
+VALID_AVALIACAO = {-1, 0, 1} # -1 para smell negativo, 0 para não avaliado e 1 para smell positivo
 
 # ── HTML ─────────────────────────────────────────────────────────────────────
 
@@ -177,40 +178,21 @@ HTML = """<!DOCTYPE html>
       const vbadge = p.verified
         ? '<span class="tag verified">verificado</span>'
         : '<span class="tag unverified">nao-verificado</span>';
+      const av = p.avaliacao || 0;
+      const thresholdsInfo = p.thresholds ? p.thresholds.map(t => JSON.stringify(t)).join(' | ') : 'N/A';
       return `
-      <div class="pair ${st ? 'st-' + st : ''}" data-id="${esc(p.id)}" data-smell="${esc(p._smell_file)}">
+      <div class="pair ${av === 1 ? 'st-clean' : (av === -1 ? 'st-rejected' : '')}" data-id="${esc(p.id)}" data-smell="${esc(p._smell_file)}">
         <div class="pair-header">
           <span class="idx">#${i + 1}</span>
           <span class="fname">${esc(p.function_name || '?')}</span>
           <span class="tag">${esc(p.smell_type || '?')}</span>
-          ${vbadge}
-          <span class="repo">${esc((p.repo||'').replace('https://github.com/',''))}
-            · ${esc(p.file||'')} · <code>${esc((p.commit_hash||'').slice(0,7))}</code></span>
+          <span class="tag" style="background:#4b1113; color:#f85149">Thresholds: ${esc(thresholdsInfo)}</span>
         </div>
         <div class="diff-wrap"><table class="diff">${p._diff}</table></div>
         <div class="review-bar">
-          <button class="vbtn clean ${st==='clean'?'on':''}"       onclick="verdict(this,'clean')">Limpa</button>
-          <button class="vbtn noisy ${st==='noisy'?'on':''}"       onclick="openNoisy(this)">Ruidosa</button>
-          <button class="vbtn rejected ${st==='rejected'?'on':''}" onclick="verdict(this,'rejected')">Rejeitar</button>
-          <label><input type="checkbox" class="oor" ${rv.out_of_rule?'checked':''}> fora da regra</label>
-          <input type="text" class="justificativa"
-                 placeholder="justificativa (obrigatoria p/ ruidosa/rejeitar)"
-                 value="${esc(rv.justificativa||'')}">
-          <select class="confianca" title="confianca do revisor (opcional)">
-            <option value=""      ${conf===''     ?'selected':''}>confianca?</option>
-            <option value="alta"  ${conf==='alta' ?'selected':''}>alta</option>
-            <option value="media" ${conf==='media'?'selected':''}>media</option>
-            <option value="baixa" ${conf==='baixa'?'selected':''}>baixa</option>
-          </select>
-          <input type="text" class="notes" placeholder="notas" value="${esc(rv.notes||'')}">
-          <span class="rstatus">${st ? 'veredito: ' + st : 'pendente'}</span>
-        </div>
-        <div class="noisy-editor ${st==='noisy'?'open':''}">
-          <div><div class="lbl">before_clean (recorte o par puro)</div>
-            <textarea class="bc">${esc(bc)}</textarea></div>
-          <div><div class="lbl">after_clean</div>
-            <textarea class="ac">${esc(ac)}</textarea></div>
-          <button class="vbtn noisy" onclick="saveNoisy(this)">Salvar par recortado</button>
+          <button class="vbtn clean ${av === 1 ? 'on' : ''}" onclick="verdict(this, 1)">Smell Positivo (+1)</button>
+          <button class="vbtn rejected ${av === -1 ? 'on' : ''}" onclick="verdict(this, -1)">Smell Negativo (-1)</button>
+          <span class="rstatus">${av !== 0 ? 'Avaliado: ' + av : 'Pendente (0)'}</span>
         </div>
       </div>`;
     }).join('');
@@ -220,26 +202,22 @@ HTML = """<!DOCTYPE html>
 
   function _pairEl(node) { return node.closest('.pair'); }
 
-  async function _send(pairEl, status, extra) {
-    const body = Object.assign({
+  async function _send(pairEl, avaliacao_val) {
+    const body = {
       smell: pairEl.dataset.smell,
       id: pairEl.dataset.id,
-      status: status,
-      out_of_rule: pairEl.querySelector('.oor').checked,
-      notes: pairEl.querySelector('.notes').value,
-      justificativa: pairEl.querySelector('.justificativa').value,
-      confianca: pairEl.querySelector('.confianca').value || null,
-    }, extra || {});
+      avaliacao: avaliacao_val
+    };
     const res = await fetch('/review', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (data.ok) { showToast('Veredito salvo: ' + status); loadPairs(); }
+    if (data.ok) { showToast('Veredito salvo: ' + avaliacao_val); loadPairs(); }
     else { showToast('Erro: ' + data.error, true); }
   }
 
-  function verdict(btn, status) { _send(_pairEl(btn), status); }
+  function verdict(btn, val) { _send(_pairEl(btn), val); }
 
   function openNoisy(btn) {
     _pairEl(btn).querySelector('.noisy-editor').classList.toggle('open');
@@ -383,6 +361,36 @@ def save_review(reviews_dir: Path, smell: str, review: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         for r in reviews.values():
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+            
+def update_avaliacao(data_dir: Path, smell: str, pid: str, avaliacao: int) -> dict:
+    """Abre o arquivo JSONL cru, atualiza a avaliação do par específico e salva."""
+    path = data_dir / f"{smell}.jsonl"
+    records = []
+    updated_record = None
+    
+    if not path.exists():
+        return None
+
+    # Lê todos os registros
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        rec = json.loads(line)
+        
+        if rec.get("id") == pid:
+            rec["avaliacao"] = avaliacao
+            updated_record = rec
+            
+        records.append(rec)
+
+    # Sobrescreve o arquivo com a lista atualizada
+    if updated_record:
+        with open(path, "w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+                
+    return updated_record
 
 # ── Carregamento de pares ────────────────────────────────────────────────────
 
@@ -390,30 +398,17 @@ def get_smells(data_dir: Path) -> list[str]:
     return sorted(p.stem for p in data_dir.glob("*.jsonl"))
 
 
-def load_pairs(data_dir: Path, reviews_dir: Path, smell: str | None,
-               status: str, limit: int, reviewer: str | None = None,
-               assignment: dict | None = None,
-               adjudicar: bool = False) -> tuple[list[dict], int, int]:
-    """Pares de `data/raw/`, com o veredito do revisor atual anexado.
-
-    Revisão dupla (`assignment` + `reviewer`): mostra só os pares dos blocos do
-    revisor. Modo normal — blocos onde ele é revisor primário. Modo `adjudicar`
-    — o bloco que ele adjudica, restrito aos pares divergentes (ambos os
-    primários revisaram e discordaram).
-
-    Retorna (pares_exibidos, total, total_revisados)."""
+def load_pairs(data_dir: Path, smell: str | None, avaliacao_filter: str, limit: int) -> tuple[list[dict], int, int]:
     files = (
         [data_dir / f"{smell}.jsonl"] if smell and smell != "all"
         else sorted(data_dir.glob("*.jsonl"))
     )
-    id2bloco = _id_para_bloco(assignment) if assignment else {}
-    dupla = assignment is not None and reviewer is not None
+    
     pairs, total, reviewed = [], 0, 0
     for f in files:
         if not f.exists():
             continue
         stem = f.stem
-        reviews = load_reviews(reviews_dir, stem)
         for line in f.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
@@ -422,32 +417,27 @@ def load_pairs(data_dir: Path, reviews_dir: Path, smell: str | None,
                 p = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            pid = p.get("id")
-            if dupla:
-                bloco = id2bloco.get(pid)
-                if bloco is None:
-                    continue
-                if adjudicar:
-                    if reviewer != bloco["adjudicator"]:
-                        continue
-                    if not _e_divergente(pid, bloco, reviews):
-                        continue
-                elif reviewer not in bloco["revisores"]:
-                    continue
+            
             total += 1
-            review = reviews.get((pid, reviewer)) if pid else None
-            if review:
+            
+            av_atual = p.get("avaliacao", 0) 
+            
+            if av_atual != 0:
                 reviewed += 1
-            if status == "pending" and review:
+                
+            # Lógica do filtro do dropdown
+            if avaliacao_filter == "pending" and av_atual != 0:
                 continue
-            if status == "reviewed" and not review:
+            if avaliacao_filter == "reviewed" and av_atual == 0:
                 continue
+                
             if len(pairs) >= limit:
                 continue
+                
             p["_diff"] = build_diff_rows(p.get("before_code", ""), p.get("after_code", ""))
             p["_smell_file"] = stem
-            p["_review"] = review
             pairs.append(p)
+            
     return pairs, total, reviewed
 
 # ── Flask app ────────────────────────────────────────────────────────────────
@@ -468,11 +458,9 @@ def create_app(data_dir: Path, reviews_dir: Path, limit: int,
     @app.route("/pairs")
     def pairs():
         smell = request.args.get("smell", "all")
-        status = request.args.get("status", "all")
-        loaded, total, reviewed = load_pairs(
-            data_dir, reviews_dir, None if smell == "all" else smell, status,
-            limit, reviewer=reviewer, assignment=assignment, adjudicar=adjudicar,
-        )
+        status = request.args.get("status", "all") # "all", "pending", "reviewed"
+        # Chama a nova função (removendo as lógicas de assignment duplo se não for usar)
+        loaded, total, reviewed = load_pairs(data_dir, None if smell == "all" else smell, status, limit)
         return jsonify({"pairs": loaded, "total": total, "reviewed": reviewed})
 
     @app.route("/review", methods=["POST"])
@@ -480,32 +468,17 @@ def create_app(data_dir: Path, reviews_dir: Path, limit: int,
         body = request.get_json(silent=True) or {}
         smell = body.get("smell")
         pid = body.get("id")
-        status = body.get("status")
-        if not smell or not pid:
-            return jsonify({"ok": False, "error": "smell e id obrigatorios"})
-        if status not in VALID_STATUS:
-            return jsonify({"ok": False, "error": f"status invalido: {status}"})
-        justificativa = (body.get("justificativa") or "").strip()
-        if status in STATUS_EXIGE_JUSTIFICATIVA and not justificativa:
-            return jsonify({"ok": False,
-                            "error": f"justificativa obrigatoria para veredito '{status}'"})
-        confianca = body.get("confianca") or None
-        if confianca is not None and confianca not in VALID_CONFIANCA:
-            return jsonify({"ok": False, "error": f"confianca invalida: {confianca}"})
-        record = {
-            "id": pid,
-            "status": status,
-            "before_clean": body.get("before_clean"),
-            "after_clean": body.get("after_clean"),
-            "out_of_rule": bool(body.get("out_of_rule")),
-            "reviewer": reviewer,  # do config do app, não do cliente
-            "notes": body.get("notes", ""),
-            "justificativa": justificativa or None,
-            "confianca": confianca,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        save_review(reviews_dir, smell, record)
-        return jsonify({"ok": True, "review": record})
+        avaliacao = body.get("avaliacao")
+        
+        if not smell or not pid or avaliacao not in VALID_AVALIACAO:
+            return jsonify({"ok": False, "error": "Dados inválidos"})
+            
+        record = update_avaliacao(data_dir, smell, pid, avaliacao)
+        
+        if record:
+            return jsonify({"ok": True, "avaliacao": avaliacao})
+        else:
+            return jsonify({"ok": False, "error": "Registro não encontrado"})
 
     return app
 

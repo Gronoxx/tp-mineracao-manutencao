@@ -69,7 +69,7 @@ def _collect_exempt_ids(tree: ast.AST) -> set:
     return exempt
 
 
-def detect(fn: FunctionInfo) -> DetectionResult:
+def detect(fn: FunctionInfo, threshold = None) -> DetectionResult:
     try:
         tree = ast.parse(fn.source)
     except SyntaxError:
