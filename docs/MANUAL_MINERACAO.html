@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual de Mineração de Pares de Refatoração — Reprodução Consistente</title>
+<style>
+  :root{
+    --bg:#0f1115; --surface:#171a21; --surface2:#1d212b; --border:#2a2f3a;
+    --txt:#d7dce5; --muted:#8b94a7; --accent:#5aa9ff; --accent2:#7ee0c0;
+    --warn-bg:#3a2d10; --warn-bd:#d29922; --danger-bg:#3d0e10; --danger-bd:#f85149;
+    --ok-bg:#13311c; --ok-bd:#2ea043; --code-bg:#0b0d11;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+       font-size:16px;line-height:1.65;}
+  .wrap{display:grid;grid-template-columns:280px 1fr;max-width:1400px;margin:0 auto;}
+  /* sidebar / TOC */
+  nav{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
+      padding:28px 18px;border-right:1px solid var(--border);background:var(--surface);}
+  nav h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;}
+  nav a{display:block;color:var(--txt);text-decoration:none;padding:5px 10px;border-radius:6px;
+        font-size:.9rem;opacity:.85;}
+  nav a:hover{background:var(--surface2);opacity:1;color:var(--accent);}
+  nav .brand{font-weight:700;color:var(--accent);font-size:1rem;margin-bottom:4px;}
+  nav .sub{color:var(--muted);font-size:.78rem;margin-bottom:10px;}
+  /* content */
+  main{padding:40px 56px 120px;max-width:920px;}
+  h1{font-size:2rem;line-height:1.2;margin:0 0 6px;}
+  h1 .tag{display:inline-block;font-size:.8rem;vertical-align:middle;background:var(--surface2);
+          color:var(--accent2);border:1px solid var(--border);border-radius:20px;padding:3px 12px;margin-left:10px;}
+  h2{font-size:1.4rem;margin:46px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+  h3{font-size:1.1rem;margin:28px 0 8px;color:var(--accent2);}
+  p{margin:10px 0;}
+  code{background:var(--code-bg);border:1px solid var(--border);border-radius:5px;
+       padding:1px 6px;font-family:"SF Mono",Consolas,Menlo,monospace;font-size:.86em;color:#e6c07b;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;
+      padding:16px 18px;overflow-x:auto;margin:14px 0;position:relative;}
+  pre code{background:none;border:none;padding:0;color:#c9d3e0;font-size:.86rem;line-height:1.55;}
+  pre .c{color:#6b7280;}   /* comentário */
+  pre .k{color:#c678dd;}   /* keyword */
+  pre .s{color:#98c379;}   /* string */
+  pre .p{color:#e5c07b;}   /* path/cmd */
+  .lead{font-size:1.08rem;color:var(--muted);}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
+  .callout .h{font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+  .note{background:var(--surface2);}
+  .warn{background:var(--warn-bg);border-color:var(--warn-bd);}
+  .danger{background:var(--danger-bg);border-color:var(--danger-bd);}
+  .ok{background:var(--ok-bg);border-color:var(--ok-bd);}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:.9rem;}
+  th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--surface2);color:var(--accent2);font-weight:600;}
+  tr:nth-child(even) td{background:var(--surface);}
+  .step{display:flex;gap:14px;margin:18px 0;}
+  .step .n{flex:0 0 34px;height:34px;border-radius:50%;background:var(--accent);color:#06121f;
+           font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .step .b{flex:1;}
+  .pill{display:inline-block;background:var(--surface2);border:1px solid var(--border);
+        border-radius:20px;padding:2px 10px;font-size:.78rem;color:var(--muted);margin:2px 4px 2px 0;}
+  .flow{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin:16px 0;
+        font-family:"SF Mono",Consolas,monospace;font-size:.82rem;color:var(--muted);white-space:pre;overflow-x:auto;}
+  kbd{background:var(--surface2);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:1px 7px;font-size:.82em;}
+  a.inline{color:var(--accent);}
+  footer{color:var(--muted);font-size:.82rem;border-top:1px solid var(--border);margin-top:60px;padding-top:18px;}
+  .cols{columns:2;column-gap:28px;font-size:.85rem;}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto;border-right:none;border-bottom:1px solid var(--border)}main{padding:28px 20px}.cols{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="brand">Manual de Mineração</div>
+  <div class="sub">tp-mineracao-manutencao · reprodução consistente</div>
+  <h2>Conteúdo</h2>
+  <a href="#objetivo">0 · Objetivo & consistência</a>
+  <a href="#visao">1 · Visão geral do pipeline</a>
+  <a href="#prereq">2 · Pré-requisitos</a>
+  <a href="#setup">3 · Setup do ambiente</a>
+  <a href="#config">4 · Configuração imutável</a>
+  <a href="#minerar">5 · Rodar a mineração</a>
+  <a href="#validar">6 · Validação com o Gemma</a>
+  <a href="#curar">7 · Curadoria humana</a>
+  <a href="#ler">8 · Como ler os resultados</a>
+  <a href="#checklist">9 · Checklist de consistência</a>
+  <a href="#apendiceA">Apêndice A · Prompt do Gemma</a>
+  <a href="#apendiceB">Apêndice B · Os 36 repositórios</a>
+</nav>
+
+<main>
+<h1>Manual de Mineração de Pares de Refatoração <span class="tag">reprodução consistente</span></h1>
+<p class="lead">Este guia ensina, passo a passo, como minerar e validar pares de refatoração
+(<em>antes → depois</em>) <strong>exatamente do mesmo jeito</strong> que foi feito no projeto. Seguir
+este manual ao pé da letra é o que garante que os dados produzidos por você e pelos colegas sejam
+<strong>comparáveis e combináveis</strong>.</p>
+
+<!-- ───────────────────────────── 0 ───────────────────────────── -->
+<h2 id="objetivo">0 · Objetivo &amp; por que consistência importa</h2>
+<p>O projeto monta um <strong>dataset de pares de refatoração</strong> em Python para 5 tipos de
+<em>code smell</em> (R1–R5). Cada par tem o código <strong>antes</strong> e <strong>depois</strong> de uma
+refatoração real extraída do histórico de repositórios maduros. Depois, um LLM local (<strong>Gemma 4 26B
+Q3</strong>) julga cada par como <code>real</code> (refatoração legítima) ou <code>aparente</code> (falso positivo).</p>
+
+<div class="callout warn">
+  <div class="h">⚠️ A regra de ouro</div>
+  Se cada pessoa alterar a janela de tempo, a lista de repositórios, os <em>thresholds</em> dos detectores
+  ou o prompt do Gemma, os dados <strong>deixam de ser comparáveis</strong>. Tudo neste manual que estiver
+  marcado como <span class="pill">NÃO ALTERAR</span> deve ser mantido idêntico.
+</div>
+
+<h3>Os 5 smells</h3>
+<table>
+  <tr><th>Código</th><th>Smell</th><th>Refatoração-alvo</th><th>Critério do detector (canônico)</th></tr>
+  <tr><td>R1</td><td>Long Method</td><td>Extract Method</td><td><code>nloc &gt; 30</code> <em>ou</em> complexidade ciclomática <code>&gt; 10</code> (Lizard)</td></tr>
+  <tr><td>R2</td><td>Long Parameter List</td><td>Introduce Parameter Object</td><td>nº de parâmetros <code>&gt; 5</code></td></tr>
+  <tr><td>R3</td><td>Magic Numbers</td><td>Replace with Named Constant</td><td>literais sem nome (AST)</td></tr>
+  <tr><td>R4</td><td>Deep Nesting</td><td>Guard Clauses / Early Return</td><td>profundidade de aninhamento <code>&gt; 3</code></td></tr>
+  <tr><td>R5</td><td>Dead Code</td><td>Remove Dead Code</td><td>código inalcançável + variáveis não usadas (AST + Vulture)</td></tr>
+</table>
+
+<!-- ───────────────────────────── 1 ───────────────────────────── -->
+<h2 id="visao">1 · Visão geral do pipeline</h2>
+<p>A mineração tem <strong>3 estágios</strong>. O detalhe crucial: a <em>palavra-chave</em> na mensagem do
+commit é só um <strong>pré-filtro de velocidade</strong> — quem <strong>rotula</strong> o par é o
+<strong>detector estático</strong>, não a mensagem.</p>
+
+<div class="flow">┌── Estágio 1 — RECALL ──────────────────────────────────────────────┐
+│  Varre commits (janela 2020–2024) cuja mensagem cita refatoração   │
+│  ("extract method", "guard clause"…). Só um pré-filtro.            │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌── Estágio 2 — EXTRAÇÃO ─────────────────────────────────────────────┐
+│  Para cada função alterada, monta um par candidato (before/after). │
+│  Em R1, captura também as funções-helper recém-extraídas.          │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌── Estágio 3 — VERIFICAÇÃO ──────────────────────────────────────────┐
+│  Roda os detectores: aceita o par só se o detector DISPARA no      │
+│  `before` e NÃO dispara no `after` (ou dispara com magnitude       │
+│  reduzida ≥10% → marcado `partial=True`). O detector é o rótulo.   │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+        data/raw/&lt;smell&gt;.jsonl   (1 arquivo por smell, dedup por id)
+                              │
+                              ▼
+┌── VALIDAÇÃO — Gemma 4 26B Q3 ───────────────────────────────────────┐
+│  Julga cada par: REAL vs APARENTE + confiança + justificativa.     │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌── CURADORIA HUMANA (opcional, UI web) ──────────────────────────────┐
+│  Revisor confirma/ajusta os pares.                                 │
+└────────────────────────────────────────────────────────────────────┘</div>
+
+<div class="callout note">
+  <div class="h">ℹ️ Por que o corpus é determinístico</div>
+  O minerador <strong>clona cada repositório na hora</strong> (via <code>pydriller.Repository</code>), mas só
+  percorre commits dentro da janela <strong>2020-01-01 → 2024-12-31</strong>. Como essa janela está no passado,
+  o histórico é imutável: minerar hoje ou daqui a um ano gera <strong>o mesmo conjunto de commits</strong> — desde
+  que a lista de repositórios e os parâmetros sejam os mesmos.
+</div>
+
+<!-- ───────────────────────────── 2 ───────────────────────────── -->
+<h2 id="prereq">2 · Pré-requisitos</h2>
+<table>
+  <tr><th>Ferramenta</th><th>Versão usada no projeto</th><th>Observação</th></tr>
+  <tr><td>Python</td><td>3.11+ (referência: 3.14.3)</td><td>necessário para os <code>type hints</code> usados</td></tr>
+  <tr><td>git</td><td>qualquer recente</td><td>o PyDriller usa git por baixo</td></tr>
+  <tr><td>Ollama (runtime)</td><td>0.20.4</td><td>servidor local que roda o Gemma</td></tr>
+  <tr><td>Modelo Gemma</td><td><code>batiai/gemma4-26b:q3</code></td><td>quantização Q3_K_M (~13 GB)</td></tr>
+</table>
+
+<p>Instale o <a class="inline" href="https://ollama.com">Ollama</a> e baixe o modelo exato:</p>
+<pre><code><span class="c"># baixa o modelo de validação (uma vez, ~13 GB)</span>
+ollama pull batiai/gemma4-26b:q3
+
+<span class="c"># confirme que aparece na lista</span>
+ollama list | grep gemma</code></pre>
+
+<div class="callout warn">
+  <div class="h">⚠️ Use exatamente esse modelo</div>
+  É <code>batiai/gemma4-26b:q3</code> (Q3), <strong>não</strong> <code>gemma4:26b</code> nem outra quantização.
+  Modelos/quantizações diferentes dão vereditos diferentes e quebram a consistência da validação.
+</div>
+
+<!-- ───────────────────────────── 3 ───────────────────────────── -->
+<h2 id="setup">3 · Setup do ambiente</h2>
+
+<div class="step"><div class="n">1</div><div class="b">
+  <strong>Clone o repositório de mineração</strong> no commit de referência (pin) e entre nele:
+  <pre><code>git clone https://github.com/Gronoxx/tp-mineracao-manutencao.git
+cd tp-mineracao-manutencao
+<span class="c"># commit de referência deste manual:</span>
+git checkout d247e12</code></pre>
+</div></div>
+
+<div class="step"><div class="n">2</div><div class="b">
+  <strong>Crie um ambiente virtual e instale as dependências pinadas:</strong>
+  <pre><code>python -m venv .venv
+source .venv/bin/activate            <span class="c"># Windows: .venv\Scripts\activate</span>
+pip install -r extracao/requirements.txt</code></pre>
+  <p>O <code>requirements.txt</code> traz as versões exatas de PyDriller, Lizard, Pylint, Ruff, Vulture,
+  GitPython, Pydantic, Flask (UI) e o cliente <code>ollama</code>.</p>
+</div></div>
+
+<div class="callout ok">
+  <div class="h">✅ Checagem rápida</div>
+  <pre><code>python -c "import pydriller, lizard, pylint, ollama; print('deps OK')"</code></pre>
+</div>
+
+<!-- ───────────────────────────── 4 ───────────────────────────── -->
+<h2 id="config">4 · Configuração imutável <span class="pill">NÃO ALTERAR</span></h2>
+<p>Toda a configuração da corrida de produção está em
+<code>extracao/execucao/mineracao.py</code>. <strong>Não edite estes valores</strong> — eles definem o corpus:</p>
+
+<table>
+  <tr><th>Parâmetro</th><th>Valor</th><th>O que controla</th></tr>
+  <tr><td><code>REPOS</code></td><td>36 repositórios maduros</td><td>fontes da mineração (lista completa no Apêndice B)</td></tr>
+  <tr><td><code>SINCE</code></td><td><code>2020-01-01</code></td><td>início da janela de commits</td></tr>
+  <tr><td><code>TO</code></td><td><code>2024-12-31</code></td><td>fim da janela de commits</td></tr>
+  <tr><td><code>CAP_POR_SMELL</code></td><td>R1 4000 · R2 3500 · R3 1500 · R4 2500 · R5 2000</td><td>teto de pares por smell (parada, não alvo)</td></tr>
+  <tr><td><code>PARTIAL_THRESHOLD</code></td><td><code>0.1</code></td><td>aceita refator parcial (redução ≥10% da magnitude)</td></tr>
+</table>
+
+<p>Os <strong>thresholds dos detectores</strong> também são canônicos (em <code>detectores/*.py</code>):
+<span class="pill">R1: nloc&gt;30 ou ccn&gt;10</span>
+<span class="pill">R2: params&gt;5</span>
+<span class="pill">R4: profundidade&gt;3</span>. Não os altere.</p>
+
+<!-- ───────────────────────────── 5 ───────────────────────────── -->
+<h2 id="minerar">5 · Rodar a mineração</h2>
+<p>A partir da raiz do repositório (<code>tp-mineracao-manutencao/</code>), com o venv ativo:</p>
+<pre><code>python -m extracao.execucao.mineracao</code></pre>
+
+<p>O que acontece:</p>
+<ul>
+  <li>Percorre os 36 repositórios, clonando cada um e varrendo a janela 2020–2024.</li>
+  <li>Escreve <code>data/raw/&lt;smell&gt;.jsonl</code> — <strong>um arquivo por smell</strong>
+      (<code>long_method</code>, <code>long_param_list</code>, <code>magic_numbers</code>,
+      <code>deep_nesting</code>, <code>dead_code</code>).</li>
+  <li>A escrita é <strong>acumulativa e idempotente</strong> (dedup por <code>id</code>): rodar de novo não duplica.</li>
+  <li>Um repositório que falhar (clone morto etc.) <strong>não derruba a corrida</strong> — é registrado e pulado.</li>
+</ul>
+
+<div class="callout note">
+  <div class="h">ℹ️ Onde a saída cai</div>
+  Rodando da raiz do repo, os pares vão para <code>tp-mineracao-manutencao/data/raw/</code>. Esse é o diretório
+  que a validação do Gemma vai ler no próximo passo. (No projeto, a cópia oficial do dataset vive no repositório
+  <code>tp-es2-dataset</code>, mantido pelo Gustavo — os pares que você minerar devem bater com os de lá.)
+</div>
+
+<div class="callout warn">
+  <div class="h">⚠️ A corrida completa é longa</div>
+  São 36 repositórios grandes — pode levar <strong>horas</strong> e bastante disco para os clones temporários.
+  Para um <strong>teste rápido</strong>, edite uma cópia de <code>mineracao.py</code> deixando 1–2 repositórios
+  em <code>REPOS</code> só para validar seu ambiente — mas a corrida <strong>oficial</strong> usa os 36.
+</div>
+
+<!-- ───────────────────────────── 6 ───────────────────────────── -->
+<h2 id="validar">6 · Validação com o Gemma</h2>
+<p>Com o Ollama rodando e o modelo baixado, valide os pares minerados:</p>
+<pre><code><span class="c"># aponte para o diretório que contém data/raw (aqui, a própria raiz do repo)</span>
+python -m extracao.validacao.gemma_judge_dataset --dataset-dir . --smells r1 r2 r3 r4 r5</code></pre>
+
+<p>Comportamento:</p>
+<ul>
+  <li>Para cada par, monta o prompt (Apêndice A) e chama o Gemma com parâmetros fixos:
+      <span class="pill">temperature 0.1</span><span class="pill">num_predict 150</span>
+      <span class="pill">num_ctx 6144</span><span class="pill">think=False</span>.</li>
+  <li><strong>Checkpoint incremental</strong>: pula pares já avaliados e salva após cada um (resistente a interrupção).</li>
+  <li>Grava em <code>&lt;dataset-dir&gt;/anotacoes/anotacoes_gemma.json</code>.</li>
+</ul>
+
+<p>Faça um <strong>ensaio</strong> antes da corrida cheia:</p>
+<pre><code><span class="c"># lista os pares pendentes sem chamar o modelo</span>
+python -m extracao.validacao.gemma_judge_dataset --dataset-dir . --dry-run --smells r1
+
+<span class="c"># piloto: avalia só 5 pares por smell (mede tempo/qualidade)</span>
+python -m extracao.validacao.gemma_judge_dataset --dataset-dir . --pilot 5 --smells r1</code></pre>
+
+<p>Cada anotação no JSON tem o formato:</p>
+<pre><code>{
+  <span class="s">"veredito"</span>: <span class="s">"real"</span>,        <span class="c">// real = aprovado · aparente = falso positivo</span>
+  <span class="s">"confianca"</span>: <span class="s">"alta"</span>,      <span class="c">// alta · media · baixa</span>
+  <span class="s">"justificativa"</span>: <span class="s">"..."</span>,    <span class="c">// 1 frase em PT explicando a decisão</span>
+  <span class="s">"smell"</span>: <span class="s">"R1"</span>,
+  <span class="s">"ts"</span>: <span class="s">"2026-05-23T12:19:28"</span>
+}</code></pre>
+
+<div class="callout danger">
+  <div class="h">⛔ Nunca edite o prompt ou os parâmetros</div>
+  O critério de validação está em <code>PROMPT</code> + <code>SMELL_CONTEXT</code> + os parâmetros do modelo
+  (ver <a class="inline" href="#apendiceA">Apêndice A</a>). Alterá-los muda os vereditos e invalida a comparação
+  com o que já foi validado. Se precisar mudar o critério, isso é uma <strong>decisão de projeto</strong>, não
+  uma escolha individual.
+</div>
+
+<!-- ───────────────────────────── 7 ───────────────────────────── -->
+<h2 id="curar">7 · Curadoria humana (UI web)</h2>
+<p>A revisão manual roda uma interface local em Flask:</p>
+<pre><code>python -m extracao.execucao.filtro_smells --data data/raw --reviews data/reviews --port 5050</code></pre>
+<p>Abra <code>http://localhost:5050</code>. Para cada par, o revisor vê o <em>diff</em> e marca o veredito
+(<em>limpa</em> / <em>ruidosa</em> / <em>rejeitar</em>), com justificativa quando exigida. As revisões são
+salvas <strong>separadamente</strong> em <code>data/reviews/</code> — os dados crus em <code>data/raw/</code>
+<strong>não</strong> são modificados.</p>
+
+<!-- ───────────────────────────── 8 ───────────────────────────── -->
+<h2 id="ler">8 · Como ler os resultados</h2>
+<p>Um par é considerado <strong>aprovado</strong> (utilizável) quando o Gemma deu veredito
+<code>veredito: "real"</code>. Para um conjunto mais estrito, filtre também por
+<code>confianca: "alta"</code>.</p>
+
+<h3>Números de referência (corrida atual do projeto)</h3>
+<table>
+  <tr><th>Smell</th><th>Total minerado</th><th>Aprovados (real)</th></tr>
+  <tr><td>R1 · long_method</td><td>559</td><td>135</td></tr>
+  <tr><td>R2 · long_param_list</td><td>658</td><td>53</td></tr>
+  <tr><td>R3 · magic_numbers</td><td>1.758</td><td>91</td></tr>
+  <tr><td>R4 · deep_nesting</td><td>1.406</td><td>65</td></tr>
+  <tr><td>R5 · dead_code</td><td>691</td><td>272</td></tr>
+  <tr><td><strong>Total</strong></td><td><strong>5.072</strong></td><td><strong>616</strong> (12,1%)</td></tr>
+</table>
+<p>Se a sua corrida divergir muito desses números, algo na configuração provavelmente foi alterado — reveja o
+<a class="inline" href="#checklist">checklist</a>.</p>
+
+<!-- ───────────────────────────── 9 ───────────────────────────── -->
+<h2 id="checklist">9 · Checklist de consistência</h2>
+<table>
+  <tr><th>✔</th><th>Item</th></tr>
+  <tr><td>☐</td><td>Repo clonado no commit de referência (<code>d247e12</code>) — não na ponta do <code>main</code></td></tr>
+  <tr><td>☐</td><td><code>pip install -r extracao/requirements.txt</code> sem erros (versões pinadas)</td></tr>
+  <tr><td>☐</td><td>Modelo <code>batiai/gemma4-26b:q3</code> baixado (não outro)</td></tr>
+  <tr><td>☐</td><td><code>REPOS</code>, <code>SINCE</code>/<code>TO</code>, <code>CAP_POR_SMELL</code>, <code>PARTIAL_THRESHOLD</code> intactos</td></tr>
+  <tr><td>☐</td><td>Thresholds dos detectores (<code>detectores/*.py</code>) intactos</td></tr>
+  <tr><td>☐</td><td><code>PROMPT</code> e <code>SMELL_CONTEXT</code> intactos; params do modelo intactos</td></tr>
+  <tr><td>☐</td><td>Validação rodada com o mesmo <code>--dataset-dir</code> dos seus pares minerados</td></tr>
+</table>
+
+<!-- ───────────────────────────── Apêndice A ───────────────────────────── -->
+<h2 id="apendiceA">Apêndice A · Template de validação do Gemma (íntegra)</h2>
+<p>Fonte versionada: <code>extracao/validacao/gemma_judge_dataset.py</code>. Reproduzido aqui para referência.
+O placeholder <code>{smell_name}</code>/<code>{smell_rule}</code> é preenchido pelo <code>SMELL_CONTEXT</code> do smell.</p>
+
+<h3>Prompt</h3>
+<pre><code>You are an expert software engineer evaluating refactoring quality.
+
+Smell being checked: {smell_name}
+Rule: {smell_rule}
+
+BEFORE:
+```python
+{before_code}
+```
+
+AFTER:
+```python
+{after_code}
+```
+
+Is this a REAL, correct refactoring of the {smell_name} smell?
+Answer on the FIRST LINE with exactly one word: REAL or APARENTE (if it is a
+false positive, wrong refactoring, or introduces logic changes).
+Answer on the SECOND LINE with confidence: alta, media, or baixa.
+Answer on the THIRD LINE with a one-sentence justification in Portuguese.
+
+Answer:</code></pre>
+
+<h3>Contexto por smell (<code>SMELL_CONTEXT</code>)</h3>
+<table>
+  <tr><th>Smell</th><th>smell_name</th><th>smell_rule</th></tr>
+  <tr><td>R1</td><td>Extract Method (Long Method)</td><td>BEFORE deve ser uma função longa/complexa com múltiplas responsabilidades; AFTER deve ficar claramente mais curto, delegando a helpers extraídos, preservando toda a lógica.</td></tr>
+  <tr><td>R2</td><td>Introduce Parameter Object (Long Parameter List)</td><td>BEFORE com parâmetros demais (4+); AFTER agrupa parâmetros relacionados em objeto/dataclass/named tuple, reduzindo a contagem. Lógica preservada.</td></tr>
+  <tr><td>R3</td><td>Replace Magic Number/String with Named Constant</td><td>BEFORE contém literais sem nome que codificam conhecimento de domínio; AFTER os substitui por constantes nomeadas (ALL_CAPS) significativas, não meros aliases.</td></tr>
+  <tr><td>R4</td><td>Replace Nested Conditionals with Guard Clauses (Deep Nesting)</td><td>BEFORE com condicionais aninhados profundos (3+ níveis); AFTER reduz o aninhamento com early returns/guard clauses, deixando o caminho feliz linear. Lógica idêntica.</td></tr>
+  <tr><td>R5</td><td>Remove Dead Code</td><td>BEFORE com código inalcançável, variáveis não usadas ou ramos impossíveis; AFTER remove só o código morto, sem stubs/comentários, preservando todo o comportamento alcançável.</td></tr>
+</table>
+
+<h3>Como a resposta é interpretada (parsing)</h3>
+<table>
+  <tr><th>Linha</th><th>Conteúdo</th><th>Mapeamento</th></tr>
+  <tr><td>1ª</td><td><code>REAL</code> ou <code>APARENTE</code></td><td><code>veredito</code> = <code>real</code> / <code>aparente</code> (default <code>aparente</code> se ambíguo)</td></tr>
+  <tr><td>2ª</td><td><code>alta</code> / <code>media</code> / <code>baixa</code></td><td><code>confianca</code> (default <code>media</code>)</td></tr>
+  <tr><td>3ª+</td><td>frase em português</td><td><code>justificativa</code></td></tr>
+</table>
+
+<h3>Parâmetros do modelo (fixos)</h3>
+<pre><code>MODEL       = <span class="s">"batiai/gemma4-26b:q3"</span>
+TEMPERATURE = 0.1
+NUM_PREDICT = 150
+NUM_CTX     = 6144
+think       = False</code></pre>
+
+<!-- ───────────────────────────── Apêndice B ───────────────────────────── -->
+<h2 id="apendiceB">Apêndice B · Os 36 repositórios minerados <span class="pill">NÃO ALTERAR</span></h2>
+<div class="cols">
+django/django · pallets/flask · fastapi/fastapi · psf/requests · pandas-dev/pandas ·
+scikit-learn/scikit-learn · numpy/numpy · python-pillow/Pillow · sphinx-doc/sphinx ·
+pytest-dev/pytest · python-poetry/poetry · psf/black · python/mypy · pydantic/pydantic ·
+encode/httpx · sympy/sympy · celery/celery · sqlalchemy/sqlalchemy · tornadoweb/tornado ·
+aio-libs/aiohttp · scrapy/scrapy · matplotlib/matplotlib · scipy/scipy · statsmodels/statsmodels ·
+dask/dask · networkx/networkx · huggingface/transformers · explosion/spaCy · nltk/nltk ·
+ansible/ansible · urllib3/urllib3 · pyca/cryptography · pallets/werkzeug · pallets/jinja ·
+pallets/click · HypothesisWorks/hypothesis
+</div>
+
+<footer>
+  Commits de referência (pin): mineração <code>tp-mineracao-manutencao@d247e12</code> ·
+  dataset <code>tp-es2-dataset@71b731c</code> · anotador <code>tp-es2-anotador@2d6c794</code>.<br>
+  Modelo de validação: <code>batiai/gemma4-26b:q3</code> · Ollama 0.20.4 · Python 3.11+.<br>
+  Gerado para o projeto de Mineração e Manutenção de Software.
+</footer>
+</main>
+</div>
+</body>
+</html>
