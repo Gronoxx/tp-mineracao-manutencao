@@ -16,8 +16,8 @@ import argparse, base64, datetime, json, os, sys, time, urllib.error, urllib.par
 from collections import Counter
 from pathlib import Path
 
-REPO_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = REPO_DIR.parent.parent
+REPO_DIR = Path(__file__).resolve().parent  # raiz do repo (contem extracao/ e gemma_judge_dataset.py)
+PROJECT_ROOT = REPO_DIR
 sys.path.insert(0, str(REPO_DIR)); sys.path.insert(0, str(PROJECT_ROOT))
 from extracao.mineracao.minerador import extract_candidates, verify_pair  # noqa: E402
 import gemma_judge_dataset as judge  # noqa: E402

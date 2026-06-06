@@ -29,8 +29,8 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
-REPO_DIR = Path(__file__).resolve().parent          # smoke_c4/repo
-PROJECT_ROOT = REPO_DIR.parent.parent               # raiz do projeto
+REPO_DIR = Path(__file__).resolve().parent          # raiz do repo (contem extracao/)
+PROJECT_ROOT = REPO_DIR                              # raiz do projeto (gemma_judge_dataset.py mora aqui)
 sys.path.insert(0, str(REPO_DIR))
 sys.path.insert(0, str(PROJECT_ROOT))
 
