@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nota interna — Estratégia de dados para o classificador de smells aparentes</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #fafaf7;
+    --muted: #6b6b6b;
+    --rule: #d8d4cc;
+    --accent: #1f3a5f;
+    --soft: #f0ece3;
+    --softer: #f7f4ec;
+    --highlight: #fff8e8;
+    --confirm: #2d6a4f;
+    --confirm-bg: #d5ead9;
+    --pending: #8a5a1f;
+    --pending-bg: #f0e2cf;
+    --proposal: #4a3878;
+    --proposal-bg: #e1d9f0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.65;
+    font-size: 16px;
+  }
+  .container {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 22px;
+    margin-bottom: 44px;
+  }
+  header .kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 1.75rem;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  header .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    margin: 0 0 8px;
+  }
+  header .version-tag {
+    display: inline-block;
+    background: var(--soft);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    color: var(--accent);
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  h2 {
+    font-size: 1.18rem;
+    margin: 52px 0 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 600;
+  }
+  h3 {
+    font-size: 1.02rem;
+    margin: 28px 0 10px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  p { margin: 0 0 14px; }
+  ul, ol { padding-left: 22px; margin: 8px 0 16px; }
+  li { margin-bottom: 6px; }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--soft);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    margin: 14px 0 24px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    background: var(--soft);
+    font-weight: 600;
+    border-bottom: 1.5px solid var(--ink);
+    font-size: 0.83rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  tr:last-child td { border-bottom: none; }
+  td.src-name { font-weight: 600; }
+  .layer-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    background: var(--soft);
+    color: var(--accent);
+    border: 1px solid var(--rule);
+    margin-right: 4px;
+  }
+  .diagram {
+    background: var(--soft);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 24px 20px;
+    margin: 18px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .callout {
+    background: var(--soft);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    margin: 22px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.95rem;
+  }
+  .callout strong { color: var(--accent); }
+  .callout p { margin: 0; }
+  .callout.proposal {
+    background: var(--proposal-bg);
+    border-left-color: var(--proposal);
+  }
+  .callout.proposal strong { color: var(--proposal); }
+  .callout.pending {
+    background: var(--pending-bg);
+    border-left-color: var(--pending);
+  }
+  .callout.pending strong { color: var(--pending); }
+  .change-summary {
+    background: var(--softer);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 16px 0 8px;
+  }
+  .change-summary h3 { margin-top: 0; color: var(--ink); }
+  .change-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0;
+  }
+  .change-list li {
+    padding: 8px 0 8px 28px;
+    position: relative;
+    border-bottom: 1px dotted var(--rule);
+    font-size: 0.93rem;
+  }
+  .change-list li:last-child { border-bottom: none; }
+  .change-list li::before {
+    content: "\2192";
+    position: absolute;
+    left: 4px;
+    top: 8px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .lim {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--pending);
+    border-radius: 0 6px 6px 0;
+    background: var(--paper);
+    padding: 12px 16px;
+    margin: 12px 0;
+  }
+  .lim .lim-head {
+    font-weight: 600;
+    color: var(--pending);
+    font-size: 0.92rem;
+    margin-bottom: 4px;
+  }
+  .lim p { margin: 0; font-size: 0.93rem; }
+  .lim .residual {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .lim .residual b { color: var(--ink); }
+  .verdict {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .v-real { background: #d5ead9; color: #2d6a4f; }
+  .v-synth { background: #e1d9f0; color: #4a3878; }
+  .v-caution { background: #f0e2cf; color: #8a5a1f; }
+  footer {
+    margin-top: 56px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="kicker">TP Engenharia de Software II — Nota interna de controle (grupo de pesquisa)</div>
+  <h1>Estratégia de dados para o classificador de "smells aparentes" — destilação ancorada</h1>
+  <p class="subtitle">Resumo estruturado de uma sessão de trabalho sobre o gap de dados da §4 (trava de segurança). Documenta a direção proposta, os dados que pretendemos usar, as revisões necessárias e as limitações reconhecidas. <strong>Não é decisão fechada</strong> — é material de controle interno para alinhar o trio antes de comprometer esforço.</p>
+  <span class="version-tag">rascunho · 15 maio 2026 · controle interno</span>
+</header>
+
+<h2>1. O problema (recapitulação da §4, Desafio 2)</h2>
+
+<p>A trava de segurança da §4 precisa distinguir <strong>smell real</strong> (deve ser refatorado) de <strong>smell aparente</strong> (parece um smell, mas é código legítimo que não deve ser tocado — validações de segurança em <code>if</code> aninhados, contratos de API estáveis, magic numbers que são códigos de protocolo, etc.).</p>
+
+<p>Uma das duas rotas para isso (Desafio 2) é treinar o classifier diretamente em <strong>exemplos negativos</strong>: padrões que parecem smell mas devem ser preservados. O obstáculo levantado na §4: <strong>esses dados praticamente não existem em forma estruturada e rotulada</strong>. Esta nota descreve como pretendemos contornar isso e o que continua sem solução depois.</p>
+
+<h2>2. Direção proposta — destilação ancorada</h2>
+
+<p>A ideia inicial era gerar os exemplos negativos sinteticamente com um LLM e verificá-los manualmente. Discutida a fundo, ela tem dois furos: (a) o LLM gera a partir do <em>prior</em> dele, não da distribuição real — produz sempre o arquétipo prototípico e deixa regiões inteiras da fronteira de decisão sem cobertura; (b) a verificação manual conserta a <em>precisão dos rótulos</em>, mas não a <em>cobertura do espaço</em> — você não consegue verificar a ausência de algo que não foi gerado.</p>
+
+<p>A direção que adotamos corrige isso ancorando a geração em dados reais:</p>
+
+<div class="change-summary">
+  <h3>Destilação ancorada — quatro movimentos</h3>
+  <ul class="change-list">
+    <li><strong>Minerar um seed real pequeno</strong> de código onde um desenvolvedor real fez o julgamento "isto está ok" (supressões de linter, "won't fix" de ferramentas).</li>
+    <li><strong>Usar o seed real como âncora few-shot</strong> da geração sintética — o LLM passa a gerar exemplos que orbitam a distribuição real em vez do prior dele.</li>
+    <li><strong>Revisar manualmente</strong> cada exemplo (real minerado e sintético) — re-julgar "é genuinamente não-smell" vs. "é smell apenas suprimido".</li>
+    <li><strong>Reservar um test set 100% real</strong> — nunca sintético — para que os números reportados signifiquem algo e para medir o gap sintético→real.</li>
+  </ul>
+</div>
+
+<div class="callout proposal">
+  <p><strong>Por que "destilação":</strong> um LLM grande que acerta a classificação em parte dos casos pode produzir um conjunto de treino útil, desde que os erros sejam filtrados na revisão. Um classifier pequeno destilado desse conjunto roda barato e offline em produção. O termo "ancorada" marca a correção essencial: a geração é condicionada a exemplos reais, não solta no vácuo.</p>
+</div>
+
+<h2>3. Os dados que vamos usar</h2>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th style="width:21%">Fonte</th>
+      <th style="width:30%">O que é</th>
+      <th style="width:14%">Papel</th>
+      <th>Observação</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="src-name">Supressões de linter<br><code>#&nbsp;noqa</code>, <code>#&nbsp;pylint:&nbsp;disable=...</code>, <code>#&nbsp;type:&nbsp;ignore</code></td>
+      <td>Funções/classes reais onde o desenvolvedor suprimiu explicitamente um aviso de smell. O comentário de supressão funciona como rótulo proxy. Minerável via GitHub code search.</td>
+      <td><span class="verdict v-real">seed real</span> <span class="verdict v-real">âncora</span> <span class="verdict v-real">test set</span></td>
+      <td>Fonte primária. Rótulo é proxy ("dev suprimiu") — exige revisão (§4). Não precisa de volume alto: algumas centenas bastam para seed + âncora + teste.</td>
+    </tr>
+    <tr>
+      <td class="src-name">SonarQube "won't fix"</td>
+      <td>Marcações de issues que a equipe decidiu não corrigir, em repositórios que expõem o histórico de análise.</td>
+      <td><span class="verdict v-real">reforço do seed</span></td>
+      <td>A base da maioria dos repositórios é privada — volume limitado. Complementa as supressões de linter onde disponível.</td>
+    </tr>
+    <tr>
+      <td class="src-name">MLCQ dataset</td>
+      <td>Dataset rotulado de code smells com níveis <code>none / minor / major / critical</code>.</td>
+      <td><span class="verdict v-caution">uso cauteloso</span></td>
+      <td>O label <code>none</code> não distingue "não-smelly" de "smelly mas aceitável no contexto" — ambíguo justamente para o que precisamos. Só após re-rotulação manual da fatia relevante.</td>
+    </tr>
+    <tr>
+      <td class="src-name">Geração sintética ancorada<br>(Qwen2.5-Coder, few-shot)</td>
+      <td>Exemplos adicionais gerados pelo LLM, condicionados (few-shot) por exemplos reais do seed.</td>
+      <td><span class="verdict v-synth">augmentation do treino</span></td>
+      <td>Entra <strong>apenas no conjunto de treino</strong>, nunca no test set. Amplia volume e diversidade; a âncora mantém a distribuição próxima do real.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>4. As revisões necessárias</h2>
+
+<p>A revisão manual é o que converte rótulos-proxy e exemplos sintéticos em dados de treino confiáveis. Protocolo proposto:</p>
+
+<ul>
+  <li><strong>Re-julgamento de cada exemplo:</strong> para cada item minerado/gerado, um revisor humano decide explicitamente — "isto é genuinamente não-smell" ou "isto é um smell que o dev apenas suprimiu (preguiça, falta de tempo, legado de terceiros, discordância de threshold)". Só a primeira categoria entra como negativo.</li>
+  <li><strong>Revisão dupla + adjudicação</strong> em uma amostra: dois revisores independentes, conflitos resolvidos por discussão. Permite <strong>medir o kappa entre os nossos próprios revisores</strong> — número que deve ir para o relatório.</li>
+  <li><strong>Contexto disponível ao revisor:</strong> o revisor enxerga o arquivo/classe ao redor, não só a função isolada.</li>
+  <li><strong>Esforço estimado:</strong> algumas centenas de exemplos, revisão dupla com adjudicação — tarefa de dias, não de semanas. É um custo real, mas limitado e orçável (diferente da §4, que temia "inventar a metodologia do zero" — aqui o protocolo já está definido).</li>
+</ul>
+
+<h2>5. Como esses dados ajudam o classificador</h2>
+
+<div class="diagram">supressões de linter + SonarQube  ──►  SEED REAL (revisado)
+                                         │
+            ┌────────────────────────────┼────────────────────────────┐
+            ▼                            ▼                            ▼
+   âncora few-shot da              treino do classifier         TEST SET 100% real
+   geração sintética          (seed real + sintético ancorado,   (mede F1 honesto +
+   (combate falta de cobertura)        ambos revisados)           gap sintético→real)
+            │
+            ▼
+   exemplos sintéticos ──► revisão manual ──► entram só no TREINO</div>
+
+<p>Os dados cumprem <strong>três papéis distintos</strong>:</p>
+<ul>
+  <li><strong>Seed real</strong> — ancora a distribuição: garante que o classifier veja exemplos da variedade real, escritos por humanos, e não apenas o arquétipo prototípico.</li>
+  <li><strong>Âncora few-shot</strong> — a geração sintética condicionada ao seed orbita a distribuição real; ataca diretamente o problema de cobertura da fronteira de decisão.</li>
+  <li><strong>Test set real</strong> — torna o F1 reportado significativo e permite quantificar explicitamente o gap sintético→real (se pequeno, a geração funcionou; se grande, isso já é um resultado).</li>
+</ul>
+
+<div class="callout">
+  <p>O classifier resultante é um <strong>filtro de risco probabilístico de primeiro estágio</strong>, barato e offline — não uma garantia. Ele compõe uma defesa em profundidade junto com o teste comportamental do Desafio 1 (verifica preservação de comportamento diretamente) e a aprovação humana de cada diff. Ele <strong>não substitui</strong> o teste comportamental.</p>
+</div>
+
+<h2>6. Limitações reconhecidas</h2>
+
+<p>Conseguir os dados reais torna a abordagem <strong>defensável e honesta</strong> — remove a objeção de distribuição sintética. Não a torna "resolvida". Os resíduos abaixo sobrevivem a qualquer quantidade de dados e devem ser documentados no relatório (§8 — caveats).</p>
+
+<div class="lim">
+  <div class="lim-head">L1 — Rótulo proxy → colapsa no teto de kappa</div>
+  <p>A revisão manual resolve o descasamento do rótulo proxy (a supressão não é o mesmo que "não é smell"). Mas, ao trocar o proxy por julgamento humano, o erro não desaparece — ele se move para a discordância entre anotadores.</p>
+  <span class="residual"><b>Resíduo:</b> erro irredutível ≈ kappa 0.4–0.6 dos revisores em smells subjetivos. Mitigação: reportar o F1 acompanhado do kappa dos nossos próprios revisores, para separar erro de método de teto irredutível.</span>
+</div>
+
+<div class="lim">
+  <div class="lim-head">L2 — Teto de kappa é propriedade do fenômeno</div>
+  <p>Cohen's kappa 0.4–0.6 para smells subjetivos é uma propriedade do fenômeno, não dos dados: dois desenvolvedores reais discordam se um dado Long Method é aceitável. Um classifier não ultrapassa o nível de concordância dos rótulos que o treinaram.</p>
+  <span class="residual"><b>Resíduo:</b> F1 capado abaixo de 1 nos smells subjetivos, por construção. Não corrigível.</span>
+</div>
+
+<div class="lim">
+  <div class="lim-head">L3 — A decisão não é function-level (limitação de escopo reconhecida)</div>
+  <p>Se um padrão é legítimo depende com frequência de contexto fora da função — contrato de API, callers, threat model. O classifier é function-level e não vê esse contexto; o sinal necessário às vezes não está no input. Reconhecido como limitação de escopo do TP.</p>
+  <span class="residual"><b>Resíduo:</b> casos que dependem de contexto cross-function ficam fora do escopo. Vai para §8 como ameaça à validade explícita. Nota: os próprios rótulos da revisão podem codificar contexto que o classifier não consegue reproduzir em inferência.</span>
+</div>
+
+<div class="lim">
+  <div class="lim-head">L4 — Erro correlacionado LLM↔humano</div>
+  <p>Nos casos genuinamente ambíguos, LLM gerador e revisor humano compartilham priors (o LLM aprendeu de texto humano). A revisão filtra <em>discordâncias</em>, não erros — casos onde ambos erram na mesma direção entram no dataset.</p>
+  <span class="residual"><b>Resíduo:</b> a concordância aparente é inflada pela correlação gerador↔verificador; o F1 reportado é otimista nessa fração. Documentar.</span>
+</div>
+
+<div class="lim">
+  <div class="lim-head">L5 — Gap sintético→real e cross-project</div>
+  <p>Mesmo ancorada, a geração sintética não reproduz a distribuição real perfeitamente; e F1 cross-project é ~20–30pp menor que within-project.</p>
+  <span class="residual"><b>Resíduo:</b> medir explicitamente o gap sintético→real no test set real e reportar; não eliminável.</span>
+</div>
+
+<div class="callout pending">
+  <p><strong>Em uma frase:</strong> a §4 já dizia que a trava é "mitigada pela aprovação humana, mas não eliminada". Conseguir os dados reais não muda essa frase — torna o primeiro andar (o classifier) viável e honesto, mas o classifier continua sendo um redutor de risco, não uma garantia.</p>
+</div>
+
+<h2>7. Status e decisões abertas para o trio</h2>
+
+<p><strong>Status:</strong> direção de trabalho consolidada nesta sessão, <strong>não decisão fechada</strong>. Compatível com o cronograma da §4 (camada implementada após a semana 8, ou trabalho futuro documentado se o tempo apertar).</p>
+
+<ul>
+  <li><strong>Volume mínimo do seed real</strong> — quantos exemplos minerados consideramos suficiente para âncora + test set? (estimativa inicial: poucas centenas)</li>
+  <li><strong>Quantos revisores</strong> e em que fração aplicar revisão dupla com adjudicação?</li>
+  <li><strong>Incluir geração sintética</strong> ancorada, ou rodar uma primeira versão só com dados reais minerados e avaliar?</li>
+  <li><strong>Esta camada entra como objetivo do TP</strong> ou vira prova-de-conceito limitada + trabalho futuro? (a §4 já prevê as duas saídas)</li>
+  <li><strong>Categorias enumeráveis vs. subjetivas</strong> — para magic numbers que são códigos de protocolo a lista é quase fechada e a abordagem resolve bem; vale separar essas das subjetivas (God Class/Long Method aceitáveis), onde valem todas as limitações da §6?</li>
+</ul>
+
+<footer>
+  Nota interna de controle do grupo de pesquisa — TP Engenharia de Software II. Resumo estruturado de sessão de trabalho de 15 maio 2026 sobre o gap de dados da §4 da <code>PROPOSTA.html</code>. Não circula fora do trio; não substitui a proposta. Pendente discussão e aprovação dos três membros.
+</footer>
+
+</div>
+</body>
+</html>

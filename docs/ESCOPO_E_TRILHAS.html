@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escopo Final e Divisão de Trilhas — TP Engenharia de Software II</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --paper: #fafaf7;
+    --muted: #6b6b6b;
+    --rule: #d8d4cc;
+    --accent: #1f3a5f;
+    --soft: #f0ece3;
+    --softer: #f7f4ec;
+
+    --p1: #b85450;
+    --p1-bg: #f5dcdb;
+    --p2: #1f3a5f;
+    --p2-bg: #d8e0ec;
+    --p3: #6b6b6b;
+    --p3-bg: #ece8df;
+
+    --fw1: #4a3878;
+    --fw1-bg: #e1d9f0;
+    --fw2: #8a5a1f;
+    --fw2-bg: #f0e2cf;
+
+    --scope: #2d6a4f;
+    --scope-bg: #d5ead9;
+
+    --trilha-a: #3a6b8f;
+    --trilha-a-bg: #d8e6ef;
+    --trilha-b: #6b3a8f;
+    --trilha-b-bg: #e6d8ef;
+    --trilha-c: #8f6b3a;
+    --trilha-c-bg: #efe6d8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.6;
+    font-size: 15.5px;
+  }
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 22px;
+    margin-bottom: 44px;
+  }
+  header .kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 1.75rem;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  header .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    margin: 0 0 8px;
+  }
+  header .deadline {
+    display: inline-block;
+    background: var(--p1-bg);
+    border: 1px solid var(--p1);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.85rem;
+    color: var(--p1);
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  h2 {
+    font-size: 1.22rem;
+    margin: 52px 0 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+    font-weight: 600;
+  }
+  h2:first-of-type { margin-top: 0; }
+  h3 {
+    font-size: 1.05rem;
+    margin: 28px 0 10px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  p { margin: 0 0 14px; }
+  ul, ol { padding-left: 22px; margin: 8px 0 16px; }
+  li { margin-bottom: 6px; }
+  code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--soft);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  .priority {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-right: 6px;
+    min-width: 26px;
+    text-align: center;
+  }
+  .p-1 { background: var(--p1-bg); color: var(--p1); border: 1px solid var(--p1); }
+  .p-2 { background: var(--p2-bg); color: var(--p2); border: 1px solid var(--p2); }
+  .p-3 { background: var(--p3-bg); color: var(--p3); border: 1px solid var(--p3); }
+
+  .scope-block {
+    background: var(--scope-bg);
+    border: 1px solid var(--scope);
+    border-left: 4px solid var(--scope);
+    border-radius: 0 6px 6px 0;
+    padding: 18px 22px;
+    margin: 16px 0 24px;
+  }
+  .fw1-block {
+    background: var(--fw1-bg);
+    border: 1px solid var(--fw1);
+    border-left: 4px solid var(--fw1);
+    border-radius: 0 6px 6px 0;
+    padding: 18px 22px;
+    margin: 16px 0 24px;
+  }
+  .fw2-block {
+    background: var(--fw2-bg);
+    border: 1px solid var(--fw2);
+    border-left: 4px solid var(--fw2);
+    border-radius: 0 6px 6px 0;
+    padding: 18px 22px;
+    margin: 16px 0 24px;
+  }
+  .scope-block h3, .fw1-block h3, .fw2-block h3 { margin-top: 0; }
+
+  .trilha-card {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 0;
+    margin: 20px 0;
+    overflow: hidden;
+  }
+  .trilha-header {
+    padding: 14px 20px;
+    color: white;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .trilha-a .trilha-header { background: var(--trilha-a); }
+  .trilha-b .trilha-header { background: var(--trilha-b); }
+  .trilha-c .trilha-header { background: var(--trilha-c); }
+  .trilha-header .name { font-size: 1.05rem; }
+  .trilha-header .hours {
+    background: rgba(255,255,255,0.2);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+  }
+  .trilha-body {
+    padding: 18px 22px;
+    background: var(--paper);
+  }
+  .trilha-body h4 {
+    margin: 14px 0 8px;
+    font-size: 0.92rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .trilha-body h4:first-child { margin-top: 0; }
+  .task-list {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 14px;
+  }
+  .task-list li {
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--rule);
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .task-list li:last-child { border-bottom: none; }
+  .task-list .task-content {
+    flex: 1;
+  }
+  .task-list .task-meta {
+    font-size: 0.84rem;
+    color: var(--muted);
+    margin-left: 4px;
+    white-space: nowrap;
+  }
+  .deps-box {
+    background: var(--softer);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    font-size: 0.88rem;
+  }
+  .deps-box strong { color: var(--accent); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 24px;
+    font-size: 0.9rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 11px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    background: var(--soft);
+    font-weight: 600;
+    border-bottom: 1.5px solid var(--ink);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: center; white-space: nowrap; }
+
+  .legend {
+    background: var(--softer);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 8px 0 22px;
+    font-size: 0.92rem;
+  }
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin: 8px 0;
+  }
+  .legend-row > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .timeline {
+    overflow-x: auto;
+  }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="kicker">TP Engenharia de Software II — Documento de planejamento operacional</div>
+  <h1>Escopo Final, Future Work e Divisão de Trilhas</h1>
+  <p class="subtitle">Definição do que entra no TP, do que fica para depois (separado por motivo: escopo original vs. corte por prazo) e da divisão equilibrada de trabalho entre os três membros.</p>
+  <span class="deadline">Entrega: 22/06/2026 · 6.5 semanas a partir de 07/05</span>
+</header>
+
+<h2>Legenda de prioridades</h2>
+
+<div class="legend">
+  <div class="legend-row">
+    <div><span class="priority p-1">P1</span> <strong>Crítico</strong> — sem isso o TP não entrega</div>
+    <div><span class="priority p-2">P2</span> <strong>Importante</strong> — sem isso o TP entrega mas fica fraco</div>
+    <div><span class="priority p-3">P3</span> <strong>Desejável</strong> — se sobrar tempo</div>
+  </div>
+</div>
+
+<h2>1. Definição de escopo (o que entra no TP)</h2>
+
+<div class="scope-block">
+  <h3>9 smells detectados, 5 com refatoração automática via LoRA</h3>
+  <p style="margin: 0 0 10px;"><strong>Pipeline:</strong> AST decomposição → 9 detectores estáticos → 5 LoRAs de refatoração (quando aplicável) → loop iterativo até <code>clean</code> → árvore hierárquica → aprovação manual de diffs.</p>
+  <p style="margin: 0;"><strong>Stack:</strong> Python 3.11, PyDriller (mineração), Pylint + ruff + Lizard + vulture (regras), Qwen2.5-Coder-1.5B + 5 LoRAs (refatoração), Typer + Rich (CLI). 100% offline, sem APIs externas.</p>
+</div>
+
+<h3>1.1 Smells detectados (9, todos via regras estáticas)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Smell</th>
+      <th>Mecanismo</th>
+      <th>Tem LoRA?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">1</td><td><strong>Long Method</strong></td><td>Lizard <code>-L 30</code> + Pylint R0915/R0912</td><td><strong>Sim — R1 Extract Method</strong></td></tr>
+    <tr><td class="num">2</td><td><strong>Long Parameter List</strong></td><td>AST parameter count</td><td><strong>Sim — R2 Introduce Parameter Object</strong></td></tr>
+    <tr><td class="num">3</td><td><strong>Magic Numbers / Strings</strong></td><td>ruff PLR2004 + extensão AST custom</td><td><strong>Sim — R3 Replace with Named Constant</strong></td></tr>
+    <tr><td class="num">4</td><td><strong>Deeply Nested Conditional</strong></td><td>pylint R1702 (threshold 3)</td><td><strong>Sim — R4 Guard Clauses</strong></td></tr>
+    <tr><td class="num">5</td><td><strong>Dead Code intra-função</strong></td><td>pylint W0101+W0612+W0613 + vulture</td><td><strong>Sim — R5 Remove</strong></td></tr>
+    <tr><td class="num">6</td><td>Refused Bequest</td><td>MRO traversal + override count</td><td>Não — apenas detecção</td></tr>
+    <tr><td class="num">7</td><td>Duplicate Code Tipo-1/2/3</td><td>NiCad (Python) ou AST hash</td><td>Não — apenas detecção</td></tr>
+    <tr><td class="num">8</td><td>Long Message Chain</td><td>Algoritmo PyExamine portado</td><td>Não — apenas detecção</td></tr>
+    <tr><td class="num">9</td><td>Middle Man</td><td>Algoritmo PyExamine portado, intra-arquivo</td><td>Não — apenas detecção</td></tr>
+  </tbody>
+</table>
+
+<h3>1.2 Avaliação</h3>
+
+<ul>
+  <li>Held-out manual de ~40 funções Python rotuladas pelo trio</li>
+  <li>Métricas de detecção: precision, recall, F1 por smell</li>
+  <li>Métricas de refatoração: <em>execution-based</em> (testes do projeto-alvo passam após refatoração?) + avaliação humana qualitativa pelos 3 do trio</li>
+  <li>Baselines: <strong>B0</strong> LLM zero-shot, <strong>B1</strong> LoRA único multitask, <strong>B3</strong> Rope (refatoração mecânica rule-based)</li>
+  <li>Relatório paper-style 4-6 páginas + replication package (Docker + Make)</li>
+</ul>
+
+<h2>2. Future Work 1 — diferido por escopo/complexidade (independente de prazo)</h2>
+
+<div class="fw1-block">
+  <h3>O que está aqui e por quê</h3>
+  <p style="margin: 0;">Itens que o trio decidiu deixar de fora <strong>antes da pressão do prazo</strong>, por motivo de complexidade, ambiguidade na literatura ou por ser projeto separado por si só. Mesmo com 11 semanas, esses provavelmente ficariam de fora.</p>
+</div>
+
+<h3>2.1 Workarounds de smells multi-função e baseados em histórico (Camada 4 original)</h3>
+<ul>
+  <li><strong>Type-4 semantic clones</strong> — viável com UniXcoder + GPTCloneBench Python pairs, mas é um detector adicional com infra e avaliação próprias (~1.5 sem)</li>
+  <li><strong>Shotgun Surgery</strong> — exigiria flag <code>--repo-path</code> + mineração de histórico de commits via PyDriller (~2 sem)</li>
+  <li><strong>Divergent Change</strong> — compartilharia infra com Shotgun, mas adiciona 1 smell a mais (~1 sem)</li>
+</ul>
+
+<h3>2.2 Trava de segurança via geração automática de testes</h3>
+<p>Camada que distinguiria "smell real que deve ser refatorado" de "smell aparente mas necessário no contexto" (e.g., <code>if</code> aninhados em validações de segurança, magic numbers que são códigos HTTP).</p>
+<p>O trio reconheceu dois desafios independentes que tornam isso um projeto à parte:</p>
+<ul>
+  <li><strong>Desafio 1:</strong> Geração automática de testes Python que verifiquem comportamento (não apenas exercitem código) é área de pesquisa ativa — Pynguin foi tese de doutorado, LLM-based test generation ainda é open research. Provavelmente exigiria outro LoRA dedicado, com seu próprio dataset, treinamento e avaliação. <em>Spin-off potencial:</em> a geração de testes pode virar feature paralela de valor — "bateria de testes auto-gerados para código legado".</li>
+  <li><strong>Desafio 2:</strong> Treinar o classifier diretamente em exemplos negativos ("parece smell mas é necessário") exige dados que praticamente não existem em forma estruturada — fontes potenciais (PR reviews "leave as is", <code># pylint: disable</code> justificados, "won't fix" do SonarQube) são esparsas e contextualmente ambíguas. Catalogar é projeto de pesquisa empírica em si.</li>
+</ul>
+
+<h3>2.3 Mira em publicação pós-TP</h3>
+<p>Submissão a workshop acadêmico (MSR Student Track 2027, ICSE-SRC, ESEM Short Paper) após a entrega do TP. Decisão revisitada se o trio quiser estender o trabalho depois.</p>
+
+<h2>3. Future Work 2 — diferido por prazo de 22/06</h2>
+
+<div class="fw2-block">
+  <h3>O que está aqui e por quê</h3>
+  <p style="margin: 0;">Itens que <strong>estavam no escopo até semanas atrás</strong> mas saíram porque o prazo de 6.5 semanas (07/05 a 22/06) não comporta a ambição original. Se o TP tivesse 11 semanas como planejado inicialmente, esses itens entrariam.</p>
+</div>
+
+<h3>3.1 Detecção ML (Camada 3 inteira)</h3>
+<p>Os 4 LoRAs classificadores treinados para detectar smells onde a literatura mostra gap ML > regras:</p>
+<ul>
+  <li><strong>Long Method classifier</strong> (LoRA C1) — Beyazit 2026: ML F1 0.87 vs. regras 0.84, gap +3pp</li>
+  <li><strong>Feature Envy classifier</strong> (LoRA C2) — gap +8pp</li>
+  <li><strong>God Class classifier</strong> (LoRA C3) — gap +23-28pp</li>
+  <li><strong>Data Class classifier</strong> (LoRA C4) — gap +11pp</li>
+</ul>
+<p style="font-size: 0.92rem; color: var(--muted);">Long Method volta a usar regras estáticas (Lizard + Pylint) no escopo atual. Os outros 3 smells ML (Feature Envy, God Class, Data Class) saem do escopo de detecção também — não serão detectados pela ferramenta no TP.</p>
+
+<h3>3.2 LoRAs de refatoração de smells class-scope</h3>
+<ul>
+  <li><strong>R6 Move Method</strong> (refatoração de Feature Envy) — exigiria detecção de Feature Envy, que saiu do escopo</li>
+  <li><strong>R7 Extract Class</strong> (refatoração de God Class) — exigiria detecção de God Class, que saiu do escopo</li>
+</ul>
+
+<h3>3.3 Ablação científica rules vs. ML para Long Method</h3>
+<p>Tabela comparativa no paper que mostraria F1 das regras (Lizard+Pylint) vs. F1 do classifier ML (LoRA C1) para Long Method, demonstrando que o gap é apenas +3pp em condições honestas. Sem o classifier C1 treinado, essa ablação não é possível.</p>
+
+<div class="fw2-block">
+  <p style="margin: 0;"><strong>Total cortado pelo prazo:</strong> 4 LoRAs classificadores (C1-C4) + 2 LoRAs de refatoração (R6, R7) + 3 smells ML adicionais (Feature Envy, God Class, Data Class) + ablação Long Method. <strong>O paper documenta tudo isso como direção futura concreta</strong>, com referência aos achados de literatura que justificam.</p>
+</div>
+
+<h2>4. Divisão das trilhas</h2>
+
+<p>Cada trilha tem ~85-95 horas de trabalho estimado, com mistura de tarefas técnicas e operacionais. Self-assignment livre — cada um escolhe a trilha que combina mais com seu background.</p>
+
+<h3>Sugestão de afinidade</h3>
+<ul>
+  <li><strong>Trilha A:</strong> quem é mais sólido em Python AST e ferramentas de análise estática</li>
+  <li><strong>Trilha B:</strong> quem tem mais background ML e quer mexer com fine-tuning</li>
+  <li><strong>Trilha C:</strong> quem escreve melhor (vai pegar o relatório) e gosta de integração de sistemas</li>
+</ul>
+
+<div class="trilha-card trilha-a">
+  <div class="trilha-header">
+    <span class="name">Trilha A — Mineração + Detecção Estática</span>
+    <span class="hours">~85 horas</span>
+  </div>
+  <div class="trilha-body">
+    <h4>P1 — Crítico</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>AST decomposition utility</strong> — biblioteca que particiona arquivos Python em funções/métodos/classes</span>
+        <span class="task-meta">~10h · sem 1</span>
+      </li>
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>PyDriller mining pipeline</strong> — extração de pares <code>(antes, depois)</code> de commits de refatoração em ~15-20 repos Python</span>
+        <span class="task-meta">~25h · sem 1-2</span>
+      </li>
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>5 detectores Camada 1</strong> — Long Method, Long Param List, Magic Numbers, Deep Nesting, Dead Code (wrappers sobre Lizard, Pylint, ruff, vulture)</span>
+        <span class="task-meta">~25h · sem 2-3</span>
+      </li>
+    </ul>
+
+    <h4>P2 — Importante</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-2">P2</span>
+        <span class="task-content"><strong>4 detectores Camada 2</strong> — Refused Bequest (MRO), Duplicate (NiCad ou AST hash), Long Message Chain (PyExamine port), Middle Man (PyExamine port)</span>
+        <span class="task-meta">~25h · sem 3-4</span>
+      </li>
+      <li>
+        <span class="priority p-2">P2</span>
+        <span class="task-content"><strong>AST diff validator</strong> — confirmar que pares minerados batem com o tipo de mudança alegado pelo commit; descarta pares ruins do dataset</span>
+        <span class="task-meta">~10h · sem 2</span>
+      </li>
+    </ul>
+
+    <h4>P3 — Desejável</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-3">P3</span>
+        <span class="task-content"><strong>Refinamento de regras</strong> — calibrar thresholds, tratar edge cases (decoradores, async, comprehensions)</span>
+        <span class="task-meta">~5-10h · sem 5</span>
+      </li>
+    </ul>
+
+    <div class="deps-box">
+      <strong>Dependências de saída:</strong> AST utility entrega na sem 1 (desbloqueia C); primeiro batch minerado na sem 2 (desbloqueia B); 5 detectores Camada 1 na sem 3 (desbloqueia integração C).
+    </div>
+  </div>
+</div>
+
+<div class="trilha-card trilha-b">
+  <div class="trilha-header">
+    <span class="name">Trilha B — Treino e Avaliação dos LoRAs</span>
+    <span class="hours">~90 horas</span>
+  </div>
+  <div class="trilha-body">
+    <h4>P1 — Crítico</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>Setup HuggingFace + PEFT pipeline</strong> — código de fine-tuning supervisionado para Qwen2.5-Coder-1.5B com adaptadores LoRA</span>
+        <span class="task-meta">~15h · sem 1</span>
+      </li>
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>Curadoria do primeiro dataset (Long Method)</strong> — filtrar e validar pares minerados pela Trilha A para R1</span>
+        <span class="task-meta">~10h · sem 2</span>
+      </li>
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>Treino R1 (Long Method → Extract Method)</strong> — primeira prova de conceito; valida que pipeline funciona</span>
+        <span class="task-meta">~10h · sem 3</span>
+      </li>
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>Treino R2 e R3</strong> — Long Param List → Parameter Object; Magic Numbers → Named Constant</span>
+        <span class="task-meta">~15h · sem 3-4</span>
+      </li>
+    </ul>
+
+    <h4>P2 — Importante</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-2">P2</span>
+        <span class="task-content"><strong>Treino R4 e R5</strong> — Deep Nesting → Guard Clauses; Dead Code → Remove</span>
+        <span class="task-meta">~15h · sem 4-5</span>
+      </li>
+      <li>
+        <span class="priority p-2">P2</span>
+        <span class="task-content"><strong>Avaliação execution-based dos 5 LoRAs</strong> — rodar testes do projeto-alvo antes/depois da refatoração; reportar % de testes que continuam passando</span>
+        <span class="task-meta">~15h · sem 5</span>
+      </li>
+      <li>
+        <span class="priority p-2">P2</span>
+        <span class="task-content"><strong>Curadoria dos datasets restantes (R2-R5)</strong></span>
+        <span class="task-meta">~15h · sem 3-4</span>
+      </li>
+    </ul>
+
+    <h4>P3 — Desejável</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-3">P3</span>
+        <span class="task-content"><strong>Hyperparameter tuning</strong> — variar rank, alpha, lr nos LoRAs; reportar melhor configuração</span>
+        <span class="task-meta">~8h · sem 5</span>
+      </li>
+      <li>
+        <span class="priority p-3">P3</span>
+        <span class="task-content"><strong>B1 multitask LoRA</strong> — treinar um LoRA único nos 5 smells juntos (baseline para o paper)</span>
+        <span class="task-meta">~5h · sem 5</span>
+      </li>
+    </ul>
+
+    <div class="deps-box">
+      <strong>Dependências de entrada:</strong> precisa do batch minerado da Trilha A (sem 2). <strong>Dependências de saída:</strong> R1 funcionando até sem 3 (desbloqueia integração C); 5 LoRAs até sem 5 (necessário para avaliação final).
+    </div>
+  </div>
+</div>
+
+<div class="trilha-card trilha-c">
+  <div class="trilha-header">
+    <span class="name">Trilha C — CLI, Integração e Relatório</span>
+    <span class="hours">~95 horas</span>
+  </div>
+  <div class="trilha-body">
+    <h4>P1 — Crítico</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>CLI esqueleto + estrutura do repo</strong> — Typer com comando <code>detect</code>, estrutura de pastas, <code>pyproject.toml</code></span>
+        <span class="task-meta">~12h · sem 1</span>
+      </li>
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>Pipeline iterativo de detecção</strong> — orquestra AST decomposition (de A) → 9 detectores → loop até <code>clean</code> com critérios de parada (max-iter K=5, oscilação)</span>
+        <span class="task-meta">~20h · sem 2-3</span>
+      </li>
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>Integração detectores → LoRAs → diffs</strong> — chamar LoRA correto para cada smell flagueado, gerar diff, apresentar ao usuário</span>
+        <span class="task-meta">~18h · sem 4</span>
+      </li>
+      <li>
+        <span class="priority p-1">P1</span>
+        <span class="task-content"><strong>Relatório paper-style</strong> — 4-6 páginas formato ACM/IEEE, com motivação, RQs, metodologia, resultados, discussão, ameaças à validade, future work (separado FW1 vs FW2)</span>
+        <span class="task-meta">~25h · sem 6-7</span>
+      </li>
+    </ul>
+
+    <h4>P2 — Importante</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-2">P2</span>
+        <span class="task-content"><strong>Held-out fixtures (~40 funções)</strong> — coletar/escrever amostras Python rotuladas pelo trio para avaliação de detecção</span>
+        <span class="task-meta">~12h · sem 5</span>
+      </li>
+      <li>
+        <span class="priority p-2">P2</span>
+        <span class="task-content"><strong>Baselines B0 e B3</strong> — B0: LLM zero-shot Llama-3.1 / Qwen-Coder com prompt; B3: Rope mecânico para refatorações que ele suporta</span>
+        <span class="task-meta">~18h · sem 5</span>
+      </li>
+      <li>
+        <span class="priority p-2">P2</span>
+        <span class="task-content"><strong>Output em árvore com Rich</strong> — visualização hierárquica da estrutura do código com smells anotados</span>
+        <span class="task-meta">~10h · sem 4</span>
+      </li>
+    </ul>
+
+    <h4>P3 — Desejável</h4>
+    <ul class="task-list">
+      <li>
+        <span class="priority p-3">P3</span>
+        <span class="task-content"><strong>Replication package</strong> — Dockerfile + <code>make all</code> que reproduz tabelas e figuras do relatório</span>
+        <span class="task-meta">~10h · sem 7</span>
+      </li>
+      <li>
+        <span class="priority p-3">P3</span>
+        <span class="task-content"><strong>Demo gravado</strong> — vídeo curto (3-5 min) mostrando uso da CLI em arquivo Python real</span>
+        <span class="task-meta">~5h · sem 7</span>
+      </li>
+    </ul>
+
+    <div class="deps-box">
+      <strong>Dependências de entrada:</strong> AST utility (sem 1 de A), 5 detectores Camada 1 (sem 3 de A), R1 funcionando (sem 3 de B). <strong>Trilha C tem maior diversidade de tarefas e a maior responsabilidade pelo relatório final</strong> — quem pegar essa trilha será o ponto focal de integração nas semanas 6-7.
+    </div>
+  </div>
+</div>
+
+<h2>5. Cronograma consolidado (07/05 → 22/06)</h2>
+
+<div class="timeline">
+<table>
+  <thead>
+    <tr>
+      <th class="num">Sem</th>
+      <th>Período</th>
+      <th>Trilha A</th>
+      <th>Trilha B</th>
+      <th>Trilha C</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="num">1</td>
+      <td>07/05–14/05</td>
+      <td>AST utility, lista de repos final, setup PyDriller</td>
+      <td>Setup HF/PEFT, escolha modelo base</td>
+      <td>CLI esqueleto, estrutura repo</td>
+    </tr>
+    <tr>
+      <td class="num">2</td>
+      <td>14/05–21/05</td>
+      <td>Mineração começa + AST diff validator</td>
+      <td>Curadoria dataset Long Method</td>
+      <td>Pipeline iterativo skeleton</td>
+    </tr>
+    <tr>
+      <td class="num">3</td>
+      <td>21/05–28/05</td>
+      <td>5 detectores Camada 1 prontos</td>
+      <td>Treino R1 + R2</td>
+      <td>Integração CLI + 5 detectores estáticos</td>
+    </tr>
+    <tr>
+      <td class="num">4</td>
+      <td>28/05–04/06</td>
+      <td>4 detectores Camada 2 prontos</td>
+      <td>Treino R3 + curadoria R4/R5</td>
+      <td>Integração CLI + LoRAs (R1, R2 disponíveis)</td>
+    </tr>
+    <tr>
+      <td class="num">5</td>
+      <td>04/06–11/06</td>
+      <td>Polishing detectores</td>
+      <td>Treino R4 + R5; avaliação execution-based</td>
+      <td>Held-out fixtures + baselines B0/B3</td>
+    </tr>
+    <tr>
+      <td class="num">6</td>
+      <td>11/06–18/06</td>
+      <td>(apoia avaliação)</td>
+      <td>(apoia avaliação)</td>
+      <td><strong>Relatório paper-style</strong> (todos juntos)</td>
+    </tr>
+    <tr>
+      <td class="num">7</td>
+      <td>18/06–22/06</td>
+      <td>Polishing</td>
+      <td>Polishing</td>
+      <td><strong>Replication package, ensaio apresentação, entrega</strong> (todos)</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>6. Pontos operacionais ainda pendentes</h2>
+
+<ol>
+  <li><strong>Hardware do Bernardo e Filipe</strong> — Gustavo tem 6GB VRAM + 16GB RAM (Qwen2.5-Coder-1.5B roda tranquilo). Os outros precisam confirmar; quem não tiver GPU local fica em A ou C, ou usa Colab gratuito para tarefas de B.</li>
+  <li><strong>Lista final de ~15-20 repos Python para minerar</strong> — sugestões: Django, Flask, FastAPI, requests, pandas, scikit-learn, NumPy, Pillow, Sphinx, pytest, Poetry, Black, mypy, Pydantic, httpx, SymPy. Critério: >1000 stars, atividade recente, presença de testes.</li>
+  <li><strong>Self-assignment às trilhas A/B/C</strong> — combinar na primeira reunião.</li>
+  <li><strong>Sync semanal</strong> — proposta: 1h por semana, mesma hora/dia; usar para destravar dependências entre trilhas e revisar progresso.</li>
+  <li><strong>Licença do repo</strong> — sugestão MIT (default acadêmico).</li>
+  <li><strong>Code style</strong> — sugestão <code>ruff format</code> + <code>ruff check</code>; configurar pre-commit hook.</li>
+  <li><strong>Branch/PR workflow</strong> — main protegida, features em branches, PR com 1 review entre membros antes do merge.</li>
+</ol>
+
+<footer>
+  Documento gerado em 07/05/2026 a partir das decisões consolidadas pelo trio (Gustavo Dias Apolinário, Bernardo Vale dos Santos Bento, Filipe Mauro da Terra Caldeira). Escopo cortado de 12 smells + 11 LoRAs (proposta inicial, 11 sem) para 9 smells + 5 LoRAs (proposta executável em 6.5 sem). Future Work documentado em duas categorias para preservar o histórico das decisões.
+</footer>
+
+</div>
+</body>
+</html>
