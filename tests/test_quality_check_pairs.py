@@ -75,9 +75,13 @@ def test_fail_similarity_muito_baixa():
             "    return None\n"
         ),
     ))
-    if rep.ast_similarity is not None and rep.ast_similarity < AST_SIM_FAIL_BELOW:
-        assert any(i.rule == "similarity_too_low" and i.severity == "fail"
-                   for i in rep.issues)
+    assert rep.ast_similarity is not None
+    assert rep.ast_similarity < AST_SIM_FAIL_BELOW, \
+        f"ast_similarity esperado < {AST_SIM_FAIL_BELOW}, got {rep.ast_similarity}"
+    assert any(
+        i.rule == "similarity_too_low" and i.severity == "fail"
+        for i in rep.issues
+    )
 
 
 # --- WARN rules ---
@@ -86,10 +90,10 @@ def test_warn_borderline_similarity_em_param_object():
     """Parameter Object tem ast_sim ~0.17 — abaixo de 0.30 -> WARN, acima de 0.10 -> nao FAIL."""
     rep = check_pair(_base_record())
     # Caso real: param 8->1, return atributo. Esperamos warn de similaridade.
-    if rep.ast_similarity is not None:
-        if AST_SIM_FAIL_BELOW <= rep.ast_similarity < AST_SIM_WARN_BELOW:
-            assert any(i.rule == "similarity_borderline"
-                       for i in rep.issues)
+    assert rep.ast_similarity is not None
+    assert AST_SIM_FAIL_BELOW <= rep.ast_similarity < AST_SIM_WARN_BELOW, \
+        f"ast_similarity {rep.ast_similarity} fora do range esperado [{AST_SIM_FAIL_BELOW}, {AST_SIM_WARN_BELOW})"
+    assert any(i.rule == "similarity_borderline" for i in rep.issues)
 
 
 def test_warn_before_muito_curto():
@@ -207,7 +211,3 @@ def test_adjacent_oracle_em_data_raw_se_existirem():
     # Verificacao basica: cada par produz um report sem crash.
     reports = [check_pair(p) for p in pairs]
     assert len(reports) == len(pairs)
-    # Quantos sao FAIL? Imprime informativo (nao assertion — o relatorio
-    # detalhado e tarefa do script CLI, nao da suite).
-    n_fail = sum(1 for r in reports if r.n_fail > 0)
-    print(f"\n[INFO] {len(pairs)} pares adjacent_oracle, {n_fail} com FAIL")
