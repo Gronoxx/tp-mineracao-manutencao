@@ -21,7 +21,7 @@ Implementação:
   o ambiente do sprint).
 """
 import ast
-import signal
+import concurrent.futures
 from dataclasses import dataclass
 from typing import Optional
 
@@ -85,25 +85,17 @@ def _n_params(src: str) -> int:
 class _TimeoutError(Exception):
     pass
 
-
 def _with_timeout(fn, args, timeout_seconds: float):
-    """Executa `fn(*args)` com hard timeout (UNIX). Retorna `(value, exc)`."""
-
-    def handler(signum, frame):
-        raise _TimeoutError("call exceeded timeout")
-
-    # `setitimer` aceita float; preserva o handler anterior.
-    old_handler = signal.signal(signal.SIGALRM, handler)
-    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
-    try:
-        value = fn(*args)
-        return value, None
-    except Exception as exc:
-        return None, exc
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, old_handler)
-
+    """Executa fn(*args) com timeout cross-platform via ThreadPoolExecutor."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        future = ex.submit(fn, *args)
+        try:
+            value = future.result(timeout=timeout_seconds)
+            return value, None
+        except concurrent.futures.TimeoutError:
+            return None, TimeoutError("call exceeded timeout")
+        except Exception as exc:
+            return None, exc
 
 def behavioral_check(
     src_before: str,
