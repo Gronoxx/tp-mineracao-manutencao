@@ -1,0 +1,1 @@
+# para instalar as dependencias de treinamento da trilha_b, nao adicionarei ainda
