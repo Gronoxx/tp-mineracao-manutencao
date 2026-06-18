@@ -95,8 +95,9 @@ def test_scan_arquivo_com_erro_de_sintaxe_avisa_e_continua(runner, tmp_path):
     _escrever(tmp_path, "quebrado.py", CODIGO_INVALIDO)
     _escrever(tmp_path, "smelly.py", CODIGO_COM_SMELLS)
     res = runner.invoke(cli, ["scan", str(tmp_path)])
+    output_normalizado = " ".join(res.output.split())
     assert res.exit_code == 0
-    assert "erro de sintaxe" in res.output
+    assert "erro de sintaxe" in output_normalizado
     assert "smelly.py" in res.output
 
 
