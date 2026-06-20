@@ -1,15 +1,18 @@
 from .data_structs import FunctionInfo
 from .base import DetectionResult
 
-THRESHOLD = 5  # >5 parâmetros = smell
+DEFAULT_PARAMS = {
+    "max_params": 5,  # >5 parâmetros = smell
+}
 
-def detect(fn: FunctionInfo) -> DetectionResult:
-    
+def detect(fn: FunctionInfo, params: dict | None = None) -> DetectionResult:
+    p = {**DEFAULT_PARAMS, **(params or {})}
+
     count = len(fn.params)
-    
+
     return DetectionResult(
         smell="long_param_list",
-        detected=count > THRESHOLD,
+        detected=count > p["max_params"],
         confidence=1.0,
-        evidence={"params": fn.params, "count": count, "threshold": THRESHOLD},
+        evidence={"params": fn.params, "count": count, "threshold": p["max_params"]},
     )
