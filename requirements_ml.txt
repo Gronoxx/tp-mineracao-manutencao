@@ -1,1 +1,3 @@
-# para instalar as dependencias de treinamento da trilha_b, nao adicionarei ainda
+# Dependências de treinamento da trilha_b (LoRA). Placeholder intencional:
+# as deps de ML ainda vivem em trilha_b/requirements.txt e serão migradas
+# para cá quando o treino da trilha_b entrar no pipeline.

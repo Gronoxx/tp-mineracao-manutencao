@@ -17,8 +17,9 @@ Implementação:
 - Estratégias simples (int, str, list, None) — funções com tipagem mais
   complexa podem fugir do escopo. O caller decide se aceita um par com
   `INCONCLUSIVE` (zero amostras executadas) ou rejeita.
-- Timeout por chamada via `signal.alarm` (apenas UNIX — sufficient para
-  o ambiente do sprint).
+- Timeout por chamada via thread (cross-platform; ver `_with_timeout`). É um
+  timeout *soft*: respeita o prazo para o caller, mas não mata a thread —
+  aceitável porque roda offline sobre snippets pequenos já minerados.
 """
 import ast
 import concurrent.futures
@@ -82,20 +83,31 @@ def _n_params(src: str) -> int:
     return 0
 
 
-class _TimeoutError(Exception):
-    pass
-
 def _with_timeout(fn, args, timeout_seconds: float):
-    """Executa fn(*args) com timeout cross-platform via ThreadPoolExecutor."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        future = ex.submit(fn, *args)
-        try:
-            value = future.result(timeout=timeout_seconds)
-            return value, None
-        except concurrent.futures.TimeoutError:
-            return None, TimeoutError("call exceeded timeout")
-        except Exception as exc:
-            return None, exc
+    """Executa ``fn(*args)`` com timeout cross-platform via thread. Retorna
+    ``(value, exc)``.
+
+    Diferente do antigo ``signal.alarm`` (só-UNIX, hard-kill), o timeout aqui é
+    *soft*: a worker NÃO é interrompida. Se ``fn`` for um loop infinito
+    CPU-bound, a chamada retorna ``TimeoutError`` no prazo, mas a thread segue
+    viva em background até terminar (no pior caso, junta no encerramento do
+    interpretador). É aceitável porque este módulo roda offline sobre snippets
+    pequenos já minerados (ver nota no topo). Para hard-kill de código hostil,
+    troque por ``multiprocessing`` com ``terminate()``.
+    """
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = ex.submit(fn, *args)
+    try:
+        return future.result(timeout=timeout_seconds), None
+    except concurrent.futures.TimeoutError:
+        return None, TimeoutError("call exceeded timeout")
+    except Exception as exc:
+        return None, exc
+    finally:
+        # wait=False: não bloqueia o caller esperando uma worker que estourou o
+        # prazo. (Num `with`, o __exit__ chamaria shutdown(wait=True) e travaria
+        # exatamente no caso de timeout que queremos evitar.)
+        ex.shutdown(wait=False)
 
 def behavioral_check(
     src_before: str,
