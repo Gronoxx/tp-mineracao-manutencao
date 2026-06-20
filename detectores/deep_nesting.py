@@ -2,25 +2,28 @@ import ast
 from .data_structs import FunctionInfo
 from .base import DetectionResult
 
-THRESHOLD = 3  # profundidade > 3 = smell
+DEFAULT_PARAMS = {
+    "max_depth": 3,  # profundidade > 3 = smell
+}
 
 NESTING_NODES = (ast.If, ast.For, ast.While, ast.With, ast.Try,
                  ast.AsyncFor, ast.AsyncWith)
 
 def _max_depth(node, current=0) -> int:
-    
+
     if isinstance(node, NESTING_NODES):
         current += 1
-        
+
     max_d = current
-    
+
     for child in ast.iter_child_nodes(node):
         max_d = max(max_d, _max_depth(child, current))
-        
+
     return max_d
 
-def detect(fn: FunctionInfo) -> DetectionResult:
-    
+def detect(fn: FunctionInfo, params: dict | None = None) -> DetectionResult:
+    p = {**DEFAULT_PARAMS, **(params or {})}
+
     try:
         tree = ast.parse(fn.source)
     except SyntaxError:
@@ -36,7 +39,7 @@ def detect(fn: FunctionInfo) -> DetectionResult:
 
     return DetectionResult(
         smell="deep_nesting",
-        detected=depth > THRESHOLD,
+        detected=depth > p["max_depth"],
         confidence=1.0,
-        evidence={"max_depth": depth, "threshold": THRESHOLD},
+        evidence={"max_depth": depth, "threshold": p["max_depth"]},
     )
