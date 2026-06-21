@@ -5,8 +5,9 @@ de comando: recebe arquivos ou diretórios Python, roda os detectores sobre
 cada função/método e apresenta os smells encontrados (árvore Rich ou JSON).
 
 Uso:
+    python3 cli.py --version
     python3 cli.py scan caminho/arquivo.py
-    python3 cli.py scan caminho/projeto/ --smell long_method --smell dead_code
+    python3 cli.py scan caminho/projeto/ --smell R1 --smell dead_code
     python3 cli.py scan projeto/ --json > resultado.json
     python3 cli.py smells
 """
@@ -27,6 +28,9 @@ if _root not in sys.path:
 from detectores import DETECTORS  # noqa: E402
 from extracao.mineracao.ast_utils import parse_file  # noqa: E402
 
+# Versão semântica da ferramenta (SemVer). Primeira release pública.
+__version__ = "1.0.0"
+
 # Diretórios que nunca contêm código do usuário a analisar
 _SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", ".tox", "node_modules",
               ".mypy_cache", ".ruff_cache", "build", "dist", ".eggs"}
@@ -39,6 +43,30 @@ SMELL_INFO = {
     "deep_nesting":    ("R4", "Aninhamento profundo — candidato a Guard Clauses"),
     "dead_code":       ("R5", "Código morto — candidato a remoção"),
 }
+
+# Mapa ID (R1–R5) → nome canônico do smell, para o usuário filtrar por qualquer um dos dois.
+_ID_PARA_SMELL = {rid.upper(): nome for nome, (rid, _) in SMELL_INFO.items()}
+
+
+def _normalizar_smells(ctx, param, valores):
+    """Aceita ID (R1–R5, case-insensitive) ou nome do smell; normaliza para o nome canônico.
+
+    Mantém a ordem de digitação e remove duplicatas (ex.: `--smell R2 --smell
+    long_param_list` vira um único `long_param_list`). Erro de usuário claro
+    quando o valor não corresponde a nenhum smell.
+    """
+    canonicos = []
+    for valor in valores:
+        chave = valor.strip()
+        if chave in DETECTORS:
+            canonicos.append(chave)
+        elif chave.upper() in _ID_PARA_SMELL:
+            canonicos.append(_ID_PARA_SMELL[chave.upper()])
+        else:
+            ids = ", ".join(f"{rid} ({nome})" for nome, (rid, _) in SMELL_INFO.items())
+            raise click.BadParameter(
+                f"'{valor}' não é um smell conhecido. Use o ID ou o nome: {ids}.")
+    return tuple(dict.fromkeys(canonicos))  # dedup preservando ordem
 
 
 def _coletar_arquivos(caminhos: tuple[str, ...]) -> list[Path]:
@@ -127,21 +155,47 @@ def _analisar(arquivos: list[Path], smells: tuple[str, ...]) -> tuple[list[dict]
     return resultados, avisos
 
 
-@click.group()
+@click.group(
+    epilog="\b\n"
+           "Exemplos:\n"
+           "  cli.py scan src/                    analisa um diretório inteiro\n"
+           "  cli.py scan app.py --smell R1       só Long Method (filtro por ID)\n"
+           "  cli.py scan src/ --json > out.json  saída estruturada p/ integração\n"
+           "  cli.py smells                       lista os smells suportados\n")
+@click.version_option(__version__, "-V", "--version", "--V", prog_name="PySniff")
 def cli():
-    """Detector de code smells Python (5 smells, R1–R5) por análise estática."""
+    """PySniff — detector de code smells em Python por análise estática.
+
+    Aponte a ferramenta para arquivos ou diretórios e ela reporta, por
+    função/método, os 5 smells de manutenção suportados (R1–R5) com a
+    evidência métrica de cada detecção. Use `smells` para ver a lista e
+    `scan --help` para os detalhes da análise.
+    """
 
 
-@cli.command()
-@click.argument("caminhos", nargs=-1, required=True, type=click.Path(exists=True))
-@click.option("--smell", "smells", multiple=True,
-              type=click.Choice(sorted(DETECTORS)), help="Restringe aos smells dados (repetível).")
-@click.option("--json", "como_json", is_flag=True, help="Saída JSON em vez de árvore Rich.")
+@cli.command(
+    epilog="\b\n"
+           "Códigos de saída:\n"
+           "  0  análise concluída (mesmo com smells, exceto se --fail-on-detect)\n"
+           "  1  --fail-on-detect ativo e ao menos um smell detectado\n"
+           "  2  nenhum arquivo .py encontrado nos caminhos informados\n")
+@click.argument("caminhos", nargs=-1, required=True, type=click.Path(exists=True),
+                metavar="CAMINHOS...")
+@click.option("--smell", "smells", multiple=True, metavar="SMELL", callback=_normalizar_smells,
+              help="Restringe a um smell, por ID (R1–R5) ou nome (ex.: long_method). "
+                   "Repetível. Padrão: todos.")
+@click.option("--json", "como_json", is_flag=True,
+              help="Emite JSON estruturado em vez da árvore visual (para integração/scripts).")
 @click.option("--fail-on-detect", is_flag=True,
-              help="Sai com código 1 se qualquer smell for detectado (uso em CI).")
+              help="Retorna código de saída 1 se algum smell for detectado (útil em CI).")
 def scan(caminhos, smells, como_json, fail_on_detect):
-    """Analisa arquivos ou diretórios e reporta smells por função."""
+    """Analisa CAMINHOS (arquivos .py ou diretórios) e reporta smells por função.
+
+    Diretórios são percorridos recursivamente; pastas como .venv, .git e
+    __pycache__ são ignoradas automaticamente.
+    """
     console = Console(stderr=False)
+    filtrado = bool(smells)  # o usuário restringiu os smells via --smell?
     smells = smells or tuple(sorted(DETECTORS, key=lambda s: SMELL_INFO[s][0]))
     arquivos = _coletar_arquivos(caminhos)
     if not arquivos:
@@ -161,11 +215,10 @@ def scan(caminhos, smells, como_json, fail_on_detect):
              "resumo": total_por_smell, "avisos": avisos},
             ensure_ascii=False, indent=1, default=str))
     else:
+        console.print(f"[dim]Analisando {len(arquivos)} arquivo(s) "
+                      f"com {len(smells)} detector(es)…[/dim]")
         for aviso in avisos:
             console.print(f"[yellow]aviso:[/yellow] {aviso}")
-        if not resultados:
-            console.print(f"[green]Nenhum smell detectado[/green] "
-                          f"({len(arquivos)} arquivo(s), {len(smells)} detector(es)).")
         for r in resultados:
             arvore = Tree(f"[bold]{r['arquivo']}[/bold]")
             for f in r["funcoes"]:
@@ -175,8 +228,22 @@ def scan(caminhos, smells, como_json, fail_on_detect):
                     no_fn.add(f"[red]{rid} {a['smell']}[/red] — "
                               f"{_resumo_evidencia(a['smell'], a['evidence'])}")
             console.print(arvore)
-        if resultados:
-            tabela = Table(title="Resumo")
+
+        total_deteccoes = sum(total_por_smell.values())
+        if total_deteccoes == 0:
+            if filtrado:
+                quais = ", ".join(f"{SMELL_INFO[s][0]} ({s})" for s in smells)
+                console.print(f"[bold green]✓ Nenhum smell do tipo {quais} detectado[/bold green] "
+                              f"em {len(arquivos)} arquivo(s).")
+            else:
+                console.print(f"[bold green]✓ Nenhum smell detectado[/bold green] "
+                              f"em {len(arquivos)} arquivo(s).")
+        else:
+            n_funcoes = sum(len(r["funcoes"]) for r in resultados)
+            console.print(f"[bold red]✗ {total_deteccoes} smell(s)[/bold red] "
+                          f"em {n_funcoes} função(ões) de {len(resultados)} arquivo(s) "
+                          f"(de {len(arquivos)} analisado(s)).")
+            tabela = Table(title="Detecções por smell")
             tabela.add_column("Smell")
             tabela.add_column("Detecções", justify="right")
             for s in smells:

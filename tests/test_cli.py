@@ -121,3 +121,100 @@ def test_comando_smells_lista_os_cinco(runner):
     for nome in ["long_method", "long_param_list", "magic_numbers",
                  "deep_nesting", "dead_code"]:
         assert nome in res.output
+
+
+# ---------------------------------------------------------------------------
+# Filtro por ID do smell (R1–R5) — além do nome
+# ---------------------------------------------------------------------------
+
+def test_scan_filtro_por_id_do_smell(runner, tmp_path):
+    """`--smell R2` deve filtrar exatamente como `--smell long_param_list`."""
+    arq = _escrever(tmp_path, "smelly.py", CODIGO_COM_SMELLS)
+    res = runner.invoke(cli, ["scan", str(arq), "--smell", "R2", "--json"])
+    assert res.exit_code == 0
+    assert set(json.loads(res.output)["resumo"]) == {"long_param_list"}
+
+
+def test_scan_filtro_por_id_case_insensitive(runner, tmp_path):
+    """O ID é aceito em minúsculas (`r2` == `R2`)."""
+    arq = _escrever(tmp_path, "smelly.py", CODIGO_COM_SMELLS)
+    res = runner.invoke(cli, ["scan", str(arq), "--smell", "r2", "--json"])
+    assert res.exit_code == 0
+    assert set(json.loads(res.output)["resumo"]) == {"long_param_list"}
+
+
+def test_scan_id_e_nome_sao_deduplicados(runner, tmp_path):
+    """`--smell R2 --smell long_param_list` referem o mesmo smell → uma entrada."""
+    arq = _escrever(tmp_path, "smelly.py", CODIGO_COM_SMELLS)
+    res = runner.invoke(
+        cli, ["scan", str(arq), "--smell", "R2", "--smell", "long_param_list", "--json"])
+    assert res.exit_code == 0
+    assert set(json.loads(res.output)["resumo"]) == {"long_param_list"}
+
+
+def test_scan_smell_invalido_falha_com_mensagem(runner, tmp_path):
+    """Valor que não é ID nem nome → erro de uso (exit 2) com mensagem clara."""
+    arq = _escrever(tmp_path, "smelly.py", CODIGO_COM_SMELLS)
+    res = runner.invoke(cli, ["scan", str(arq), "--smell", "R9"])
+    assert res.exit_code == 2
+    assert "não é um smell" in res.output
+
+
+# ---------------------------------------------------------------------------
+# Versionamento semântico (--version)
+# ---------------------------------------------------------------------------
+
+def test_version_exibe_semver(runner):
+    """`--version` imprime a versão 1.0.0 e termina com sucesso."""
+    res = runner.invoke(cli, ["--version"])
+    assert res.exit_code == 0
+    assert "1.0.0" in res.output
+
+
+@pytest.mark.parametrize("flag", ["-V", "--version", "--V"])
+def test_version_aceita_todos_os_aliases(runner, flag):
+    """A versão é exibível por `-V`, `--version` e `--V`."""
+    res = runner.invoke(cli, [flag])
+    assert res.exit_code == 0
+    assert "1.0.0" in res.output
+
+
+# ---------------------------------------------------------------------------
+# Linha de resumo / veredito
+# ---------------------------------------------------------------------------
+
+def test_scan_veredito_quando_detecta(runner, tmp_path):
+    """Com smells, o veredito final informa a contagem total de detecções."""
+    arq = _escrever(tmp_path, "smelly.py", CODIGO_COM_SMELLS)
+    res = runner.invoke(cli, ["scan", str(arq)])
+    assert res.exit_code == 0
+    assert "smell(s) em" in res.output
+    assert "função(ões)" in res.output
+
+
+def test_scan_veredito_quando_limpo(runner, tmp_path):
+    """Sem smells e sem filtro, o veredito final é genérico."""
+    arq = _escrever(tmp_path, "limpo.py", CODIGO_LIMPO)
+    res = runner.invoke(cli, ["scan", str(arq)])
+    assert res.exit_code == 0
+    assert "Nenhum smell detectado" in res.output
+
+
+def test_scan_veredito_limpo_com_filtro_nomeia_o_smell(runner, tmp_path):
+    """Limpo com `--smell R2`, o veredito identifica o smell buscado."""
+    arq = _escrever(tmp_path, "limpo.py", CODIGO_LIMPO)
+    res = runner.invoke(cli, ["scan", str(arq), "--smell", "R2"])
+    assert res.exit_code == 0
+    assert "Nenhum smell do tipo R2 (long_param_list) detectado" in res.output
+
+
+# ---------------------------------------------------------------------------
+# Documentação do --help
+# ---------------------------------------------------------------------------
+
+def test_scan_help_documenta_codigos_de_saida(runner):
+    """O help do `scan` documenta os códigos de saída (0/1/2)."""
+    res = runner.invoke(cli, ["scan", "--help"])
+    assert res.exit_code == 0
+    assert "Códigos de saída" in res.output
+    assert "--fail-on-detect" in res.output
