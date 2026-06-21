@@ -58,7 +58,7 @@ Cada detector expõe o contrato `detect(fn: FunctionInfo) -> DetectionResult` (`
 
 ## Como Instalar
 
-Requer **Python 3.11+**.
+Requer **Python 3.11+** (testado em CI com 3.13 em Linux, macOS e Windows).
 
 ```bash
 # 1. clone o repositório
@@ -73,8 +73,8 @@ source .venv/bin/activate
 pip install -r requirements_cli.txt
 ```
 
-> Para usar **a CLI de detecção** 
-> conjunto mínimo: `pip install lizard click rich`.
+> Para usar **apenas a CLI de detecção** (sem o pipeline de mineração), o
+> conjunto mínimo de dependências é: `pip install lizard click rich`.
 
 ---
 
