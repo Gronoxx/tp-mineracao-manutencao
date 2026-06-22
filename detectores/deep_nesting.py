@@ -6,6 +6,10 @@ DEFAULT_PARAMS = {
     "max_depth": 3,  # profundidade > 3 = smell
 }
 
+NOVOS_PARAMS = { # novo parametro ótimo identificado apos analise de dados, concordancia para utilizacao dele pendente
+    "max_depth": 4,
+}
+
 NESTING_NODES = (ast.If, ast.For, ast.While, ast.With, ast.Try,
                  ast.AsyncFor, ast.AsyncWith)
 
