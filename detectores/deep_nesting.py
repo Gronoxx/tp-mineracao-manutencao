@@ -3,7 +3,7 @@ from .data_structs import FunctionInfo
 from .base import DetectionResult
 
 DEFAULT_PARAMS = {
-    "max_depth": 3,  # profundidade > 3 = smell
+    "max_depth": 4,
 }
 
 NESTING_NODES = (ast.If, ast.For, ast.While, ast.With, ast.Try,

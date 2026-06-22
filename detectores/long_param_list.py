@@ -2,7 +2,7 @@ from .data_structs import FunctionInfo
 from .base import DetectionResult
 
 DEFAULT_PARAMS = {
-    "max_params": 5,  # >5 parâmetros = smell
+    "max_params": 6,
 }
 
 def detect(fn: FunctionInfo, params: dict | None = None) -> DetectionResult:
