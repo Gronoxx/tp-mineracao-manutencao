@@ -2,6 +2,10 @@ from .data_structs import FunctionInfo
 from .base import DetectionResult
 
 DEFAULT_PARAMS = {
+    "max_params": 5,  # >5 parâmetros = smell
+}
+
+NOVOS_PARAMS = { # novo parametro ótimo identificado apos analise de dados, concordancia para utilizacao dele pendente
     "max_params": 6,
 }
 

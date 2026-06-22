@@ -8,7 +8,14 @@ from .base import DetectionResult
 # que `detect(fn)` (sem params) é idêntico à versão pré-parametrização. Quem
 # quiser varrer o limiar de statements (p.ex. o estudo de calibração) passa um
 # inteiro explícito em `params`.
+
 DEFAULT_PARAMS = {
+    "line_threshold": 30,    # linhas lógicas (lizard nloc)
+    "stmt_threshold": None,  # statements (Pylint R0915 usa 50); None = desativado
+    "ccn_threshold": 10,     # complexidade ciclomática (McCabe)
+}
+
+NOVOS_PARAMS = { # novo parametro ótimo identificado apos analise de dados, concordancia para utilizacao dele pendente
     "line_threshold": 75,    # linhas lógicas (lizard nloc)
     "stmt_threshold": 35,    # statements (Pylint R0915 usa 50); None = desativado
     "ccn_threshold": 25,     # complexidade ciclomática (McCabe = 10)
