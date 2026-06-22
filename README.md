@@ -1,3 +1,5 @@
+![pysniff-logo](./img/pysniff-logo.png)
+
 # PySniff — Detecção e Refatoração de Code Smells em Python via Mineração de Repositórios
 
 Trabalho Prático da disciplina **Engenharia de Software II** — UFMG.
@@ -15,27 +17,26 @@ Trabalho Prático da disciplina **Engenharia de Software II** — UFMG.
 ## Objetivo da Ferramenta
 
 **PySniff** é uma ferramenta de linha de comando que ataca um problema de
-**manutenção e evolução de software**: a presença de *code smells* — estruturas
-de código que funcionam, mas dificultam manutenção, leitura e evolução. A
+**manutenção e evolução de software**: a presença de *code smells*. A
 ferramenta **identifica 5 code smells em código Python por análise estática**,
 e é construída sobre um pipeline de **mineração de repositórios** que extrai
 pares reais de refatoração (antes→depois) do histórico de commits do GitHub.
 
 O projeto tem **duas entregas complementares**:
 
-1. **A CLI de detecção** (`cli.py`) — produto do enunciado: aponta-se para um
+1. **A CLI de detecção** (`cli.py`): aponta-se para um
    arquivo ou diretório Python e ela reporta, por função/método, os smells
    encontrados com a evidência métrica de cada um.
-2. **O dataset minerado com qualidade medida** (repo privado `tp-es2-dataset`) —
-   pares before→after por smell, validados por juiz LLM (Gemma) e auditados por
-   **sonda de qualidade humana** (2 anotadores, amostra estratificada, precisão
-   reponderada por taxa-base, Cohen κ) — insumo para o **fine-tuning futuro de um
+2. **O dataset minerado com qualidade medida** (repo `tp-es2-dataset`):
+   pares before→after por smell, validados por LLM (Gemma) e auditados por
+   **análise de qualidade humana** (2 anotadores, amostra estratificada, precisão
+   reponderada por taxa-base, Cohen κ). Insumo para o **fine-tuning futuro de um
    modelo de refatoração** (Trilha B; alvo: Stable Code Instruct 3B + QLoRA),
    que proporá automaticamente as correções dos smells detectados.
 
 > **Escopo real vs. proposta original:** a proposta inicial previa 12 smells e
-> 11 LoRAs. O escopo executado — documentado com justificativas em
-> `docs/DECISOES_PROJETO.md` — é de **5 smells com detecção por regras estáticas**
+> 11 LoRAs. O escopo executado e documentado com justificativas em
+> `docs/DECISOES_PROJETO.md` é de **5 smells com detecção por regras estáticas**
 > (a CLI deste repositório) e a trilha de fine-tuning condicionada à qualidade
 > medida do dataset (a sonda de qualidade veio antes do treino, deliberadamente:
 > *garbage in, garbage out*). A **Trilha B (refatoração) será continuada em
@@ -122,8 +123,7 @@ python3 -m pytest --cov
 ```
 
 A suíte tem **mais de 250 testes** (detectores, CLI e pipeline de mineração) e é
-executada **automaticamente a cada push e pull request** via GitHub Actions —
-veja [`.github/workflows/python-app.yaml`](.github/workflows/python-app.yaml).
+executada **automaticamente a cada push e pull request** via GitHub Actions. Veja [`.github/workflows/python-app.yaml`](.github/workflows/python-app.yaml).
 
 ---
 
@@ -135,14 +135,14 @@ veja [`.github/workflows/python-app.yaml`](.github/workflows/python-app.yaml).
 - **Ancoragem em rule-ID de linter** (achado central do projeto): minerar commits
   que *removem* um aviso específico de linter (ex.: Pylint R0913, Ruff PLR2004)
   multiplica o yield de pares válidos em 5–25× vs. heurísticas de mensagem de
-  commit — o yield é proporcional à **objetividade do critério** do smell.
+  commit, o yield é proporcional à **objetividade do critério** do smell.
   Detalhes e números em `docs/DECISOES_PROJETO.md`.
 - 5.072 candidatos minerados → 616 pares aprovados pelo juiz LLM (Gemma) →
   **sonda de qualidade humana de 50 pares** (estratificada, cega ao proxy AST,
   precisão populacional reponderada por taxa-base, κ) + re-auditoria assistida
   por LLM. Resultados, codebook de anotação e decisão de curadoria vivem em
   `tp-es2-dataset` e `tp-es2-anotador/CODEBOOK.md`.
-- **Oracle firewall:** PyRef e Sourcery são reservados para avaliação — nunca
+- **Oracle firewall:** PyRef e Sourcery são reservados para avaliação, nunca
   geram dados de treino; o split treino/teste é por repositório.
 
 ### Trilha B — Fine-tuning de refatoração (em desenvolvimento)
@@ -150,7 +150,7 @@ veja [`.github/workflows/python-app.yaml`](.github/workflows/python-app.yaml).
 O dataset minerado e auditado alimenta a **Trilha B**: o treino de um modelo que
 proporá automaticamente a correção dos smells detectados. A infraestrutura vive
 em `trilha_b/` (configuração e scripts de fine-tuning com QLoRA; alvo
-**Stable Code Instruct 3B**). O modelo ainda não foi treinado — esta trilha será
+**Stable Code Instruct 3B**). O modelo ainda não foi treinado. Esta trilha será
 continuada em breve.
 
 ---
@@ -165,7 +165,7 @@ continuada em breve.
   seleção de repositórios.
 - **Dataset/juiz:** Gemma (juiz LLM local), proxy de qualidade por padrão AST
   (`estimate_positive_quality.py`), anotador web próprio (`tp-es2-anotador`).
-- **Testes:** [pytest](https://github.com/pytest-dev/pytest) — mais de 250 testes
+- **Testes:** [pytest](https://github.com/pytest-dev/pytest): mais de 250 testes
   cobrindo detectores, CLI e pipeline de mineração.
 - **CI:** GitHub Actions (executa a suíte em Linux, macOS e Windows).
 - **Trilha de fine-tuning (em desenvolvimento, `trilha_b/`):** HuggingFace
