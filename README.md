@@ -1,185 +1,124 @@
 ![pysniff-logo](./img/pysniff-logo.png)
 
-# PySniff: Detecção e Refatoração de Code Smells em Python via Mineração de Repositórios
+*Versão em português: [README.pt-BR.md](README.pt-BR.md)*
 
-Trabalho Prático da disciplina Engenharia de Software II, UFMG.
+# PySniff: code smell detection and refactoring dataset construction for Python
 
-## Membros do Grupo
+PySniff is a command line tool that detects five code smells in Python through static
+analysis, built on top of a repository mining pipeline that extracts real before/after
+refactoring pairs from GitHub commit history.
 
-- Gustavo Dias Apolinário
-- Bernardo Vale dos Santos Bento
-- Filipe Mauro da Terra Caldeira
+Course project for Software Engineering II at UFMG, developed by Gustavo Dias Apolinário,
+Bernardo Vale dos Santos Bento and Filipe Mauro da Terra Caldeira.
 
-## Objetivo da Ferramenta
+## The main finding
 
-**PySniff** é uma ferramenta de linha de comando que ataca um problema de
-manutenção e evolução de software: a presença de *code smells*. A
-ferramenta identifica 5 code smells em código Python por análise estática,
-e é construída sobre um pipeline de **mineração de repositórios** que extrai
-pares reais de refatoração (antes→depois) do histórico de commits do GitHub.
+Mining commits that **remove a specific linter rule** (Pylint R0913, Ruff PLR2004 and
+others) yields 5 to 25 times more valid refactoring pairs than heuristics over commit
+messages. The multiplier is not uniform: it scales with how objectively the smell can be
+defined. A parameter count is unambiguous, so its yield is high. "Long method" depends on
+thresholds, so its yield is low.
 
-O projeto tem **duas entregas complementares**:
+This shaped the whole pipeline. Numbers and reasoning are in `docs/DECISOES_PROJETO.md`.
 
-1. A CLI de detecção (`cli.py`): aponta-se para um
-   arquivo ou diretório Python e ela reporta, por função/método, os smells
-   encontrados com a evidência métrica de cada um.
-2. O dataset minerado com qualidade medida (repo `tp-es2-dataset`):
-   pares before→after por smell, validados por LLM (Gemma) e auditados por
-   análise de qualidade humana (2 anotadores, amostra estratificada, precisão
-   reponderada por taxa-base, Cohen κ). Insumo para o fine-tuning futuro de um
-   modelo de refatoração (Trilha B, alvo: Stable Code Instruct 3B + QLoRA),
-   que proporá automaticamente as correções dos smells detectados.
+## Dataset construction
 
-> Escopo real vs. proposta original: a proposta inicial previa 12 smells e
-> 11 LoRAs. O escopo executado e documentado com justificativas em
-> `docs/DECISOES_PROJETO.md` é de 5 smells com detecção por regras estáticas
-> (a CLI deste repositório) e a trilha de fine-tuning condicionada à qualidade
-> medida do dataset (a sonda de qualidade veio antes do treino, deliberadamente:
-> *garbage in, garbage out*). A Trilha B (refatoração) será continuada em
-> breve.
+The pipeline mined 5,072 candidate pairs. An LLM judge (Gemma, running locally) approved
+616 of them. A human quality probe then audited a stratified sample of 50, blind to the AST
+proxy, with population precision reweighted by base rate and inter annotator agreement
+measured by Cohen's kappa. Two annotators, followed by an LLM assisted re audit.
 
-### Os 5 smells cobertos
+Three decisions kept the dataset honest:
 
-| ID | Smell | Refatoração-alvo | Critério de detecção |
+**Oracle firewall.** PyRef and Sourcery are reserved for evaluation and never produce
+training data. A tool cannot be both the teacher and the exam.
+
+**Repository level split.** Train and test never share a repository, so a model cannot
+memorise one project's idioms and score well on itself.
+
+**Quality probe before training.** The sample was audited before any fine tuning started,
+deliberately. Measuring the data after training the model tells you nothing you can act on.
+
+## The five smells
+
+| ID | Smell | Target refactoring | Detection criterion |
 |---|---|---|---|
-| R1 | Long Method | Extract Method | Lizard (NLOC > 30 ou CCN > 10) |
-| R2 | Long Parameter List | Parameter Object | contagem AST (> 5 parâmetros) |
-| R3 | Magic Numbers | Named Constant | AST walk com whitelist de literais estruturais |
-| R4 | Deep Nesting | Guard Clauses | profundidade AST (> 3) |
-| R5 | Dead Code | Remoção | análise AST (inalcançável, dead stores) |
+| R1 | Long Method | Extract Method | Lizard, NLOC above 30 or cyclomatic complexity above 10 |
+| R2 | Long Parameter List | Parameter Object | AST parameter count above 5 |
+| R3 | Magic Numbers | Named Constant | AST walk with a whitelist of structural literals |
+| R4 | Deep Nesting | Guard Clauses | AST depth above 3 |
+| R5 | Dead Code | Removal | AST analysis for unreachable code and dead stores |
 
-Cada detector expõe o contrato `detect(fn: FunctionInfo) -> DetectionResult` (`detectores/`).
+Every detector implements the same contract, `detect(fn: FunctionInfo) -> DetectionResult`,
+in `detectores/`.
 
-## Como Instalar
+## Scope, stated plainly
 
-Requer **Python 3.11+** (testado em CI com 3.13 em Linux, macOS e Windows).
+The original proposal promised 12 smells and 11 LoRA adapters. What was built and documented
+is 5 smells with rule based detection, plus a fine tuning track conditioned on the measured
+quality of the dataset. The reduction is recorded with its reasoning in
+`docs/DECISOES_PROJETO.md` rather than quietly dropped.
+
+The refactoring model itself has not been trained. Its infrastructure lives in `trilha_b/`,
+targeting Stable Code Instruct 3B with QLoRA.
+
+## Installing
+
+Requires Python 3.11 or later. Continuous integration runs the suite on Python 3.13 across
+Linux, macOS and Windows.
 
 ```bash
-
-# 1. clone o repositório
-git clone https://github.com/Gronoxx/tp-mineracao-manutencao
-cd tp-mineracao-manutencao
-
-# 2. crie e ative um ambiente virtual
+git clone https://github.com/Gronoxx/PySniff
+cd PySniff
 python3 -m venv .venv
 source .venv/bin/activate
-
-# 3. instale as dependências da ferramenta
 pip install -r requirements_cli.txt
 ```
 
-> Para usar apenas a CLI de detecção (sem o pipeline de mineração), o
-> conjunto mínimo de dependências é: `pip install lizard click rich`.
+For the detection CLI alone, without the mining pipeline, the minimum is
+`pip install lizard click rich`.
 
-## Como Utilizar
-
-A ferramenta tem dois comandos: `scan` (analisar código) e `smells` (listar o
-que é detectado).
+## Using it
 
 ```bash
-
-# versão da ferramenta
-python3 cli.py --version
-
-# listar os 5 smells suportados
-python3 cli.py smells
-
-# analisar um arquivo ou diretório (árvore Rich por arquivo → função → smell)
-python3 cli.py scan caminho/do/projeto/
-
-# restringir a smells específicos: por ID (R1–R5) ou nome
-python3 cli.py scan src/ --smell R1 --smell dead_code
-
-# saída JSON estruturada (para integração/scripts)
-python3 cli.py scan src/ --json > resultado.json
-
-# uso em CI: retorna código de saída 1 se algum smell for detectado
-python3 cli.py scan src/ --fail-on-detect
+python3 cli.py smells                          # list the five supported smells
+python3 cli.py scan path/to/project/           # scan a file or directory
+python3 cli.py scan src/ --smell R1            # restrict to specific smells
+python3 cli.py scan src/ --json > result.json  # structured output
+python3 cli.py scan src/ --fail-on-detect      # exit code 1 when a smell is found, for CI
 ```
 
-**Códigos de saída do `scan`:** `0` análise concluída · `1` `--fail-on-detect`
-ativo e houve detecção · `2` nenhum arquivo `.py` encontrado. Veja
-`python3 cli.py scan --help` para todos os detalhes.
+Exit codes for `scan`: 0 when analysis completes, 1 when `--fail-on-detect` is set and
+something was detected, 2 when no Python file was found.
 
-## Como Executar os Testes Localmente
+## Tests
 
 ```bash
-
-# instale as dependências de teste (além das da ferramenta)
 pip install -r requirements_cli.txt -r requirements-dev.txt
-
-# rode a suíte completa a partir da raiz do repositório
 python3 -m pytest
-
-# com relatório de cobertura
 python3 -m pytest --cov
 ```
 
-A suíte tem mais de 250 testes (detectores, CLI e pipeline de mineração) e é
-executada automaticamente a cada push e pull request via GitHub Actions. Veja [`.github/workflows/python-app.yaml`](.github/workflows/python-app.yaml).
+Over 250 tests covering detectors, the CLI and the mining pipeline, run on every push and
+pull request through GitHub Actions.
 
-## Pipeline de Mineração e Dataset
+## Built with
 
-- `extracao/` minera pares de refatoração de repositórios Git (PyDriller): modos
-  commit, PR, cross-file e rename, com validação por similaridade AST e checagem
-  comportamental heurística.
-- Ancoragem em rule-ID de linter (achado central do projeto): minerar commits
-  que *removem* um aviso específico de linter (ex.: Pylint R0913, Ruff PLR2004)
-  multiplica o yield de pares válidos em 5–25× vs. heurísticas de mensagem de
-  commit, o yield é proporcional à **objetividade do critério** do smell.
-  Detalhes e números em `docs/DECISOES_PROJETO.md`.
-- 5.072 candidatos minerados → 616 pares aprovados pelo juiz LLM (Gemma) →
-  sonda de qualidade humana de 50 pares (estratificada, cega ao proxy AST,
-  precisão populacional reponderada por taxa-base, κ) + re-auditoria assistida
-  por LLM. Resultados, codebook de anotação e decisão de curadoria vivem em
-  `tp-es2-dataset` e `tp-es2-anotador/CODEBOOK.md`.
-- **Oracle firewall:** PyRef e Sourcery são reservados para avaliação, nunca
-  geram dados de treino, o split treino/teste é por repositório.
+Click and Rich for the command line. The standard library `ast` module, Lizard, Pylint, Ruff
+and Vulture for static analysis. PyDriller, GitPython and PyGithub for mining, with Seart GHS
+for repository selection. Gemma as a local LLM judge. pytest and GitHub Actions for testing.
+HuggingFace Transformers and PEFT for the fine tuning track.
 
-### Trilha B: Fine-tuning de refatoração (em desenvolvimento)
+## Repository layout
 
-O dataset minerado e auditado alimenta a **Trilha B**: o treino de um modelo que
-proporá automaticamente a correção dos smells detectados. A infraestrutura vive
-em `trilha_b/` (configuração e scripts de fine-tuning com QLoRA, alvo
-Stable Code Instruct 3B). O modelo ainda não foi treinado. Esta trilha será
-continuada em breve.
+The project spans three repositories, separated by role.
 
-## Tecnologias Utilizadas
-
-- **CLI:** [Click](https://click.palletsprojects.com) (definição dos comandos) +
-  [Rich](https://github.com/Textualize/rich) (árvore e tabelas no terminal).
-- **Análise estática:** `ast` (stdlib), [Lizard](https://github.com/terryyin/lizard),
-  Pylint, Ruff, Vulture.
-- **Mineração:** PyDriller, GitPython, PyGithub (issues/PRs), Seart GHS para
-  seleção de repositórios.
-- **Dataset/juiz:** Gemma (juiz LLM local), proxy de qualidade por padrão AST
-  (`estimate_positive_quality.py`), anotador web próprio (`tp-es2-anotador`).
-- **Testes:** [pytest](https://github.com/pytest-dev/pytest): mais de 250 testes
-  cobrindo detectores, CLI e pipeline de mineração.
-- **CI:** GitHub Actions (executa a suíte em Linux, macOS e Windows).
-- **Trilha de fine-tuning (em desenvolvimento, `trilha_b/`):** HuggingFace
-  Transformers + PEFT (QLoRA), alvo Stable Code Instruct 3B.
-
-## Estrutura do Repositório
-
-O projeto usa três repositórios, separados por papel:
-
-| Repositório | Papel | Visibilidade |
+| Repository | Role | Visibility |
 |---|---|---|
-| **`tp-mineracao-manutencao`** (este) | código: mineração, detectores, CLI, trilha de treino | público |
-| `tp-es2-anotador` | ferramenta web de anotação + codebook + scorer da sonda | público |
-| `tp-es2-dataset` | dados: candidatos minerados, veredictos, anotações, sonda | privado |
+| `PySniff` (this one) | mining, detectors, CLI, training track | public |
+| `PySniff-anotador` | web annotation tool, codebook and probe scorer | public |
+| `PySniff-dataset` | mined candidates, verdicts, annotations, quality probe | private |
 
-Layout do código:
-
-- `cli.py`: CLI de detecção (produto do enunciado: comandos `scan` e `smells`).
-- `detectores/`: os 5 detectores estáticos (`detect(fn) -> DetectionResult`).
-- `extracao/`: mineração de pares de refatoração via PyDriller.
-- `core/`: tipos compartilhados, schema e oráculo de avaliação.
-- `trilha_b/`: configuração e scripts de fine-tuning (QLoRA, ainda não treinado).
-- `gemma_judge_dataset.py`, `estimate_positive_quality.py`: juiz LLM e proxy de
-  qualidade do dataset.
-- `docs/`: enunciado, decisões de projeto datadas e checkpoints.
-- `tests/`: suíte pytest (rodar da raiz: `python3 -m pytest`).
-- `.github/workflows/`: GitHub Actions (CI).
-*Engenharia de Software II, UFMG, 2026*
+Inside this repository, `cli.py` holds the detection interface, `detectores/` the five static
+detectors, `extracao/` the mining pipeline, `core/` shared types and the evaluation oracle,
+`trilha_b/` the fine tuning configuration, and `docs/` the dated design decisions.
