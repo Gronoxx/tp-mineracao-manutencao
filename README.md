@@ -13,31 +13,108 @@ Bernardo Vale dos Santos Bento and Filipe Mauro da Terra Caldeira.
 
 ## The main finding
 
-Mining commits that **remove a specific linter rule** (Pylint R0913, Ruff PLR2004 and
-others) yields 5 to 25 times more valid refactoring pairs than heuristics over commit
-messages. The multiplier is not uniform: it scales with how objectively the smell can be
-defined. A parameter count is unambiguous, so its yield is high. "Long method" depends on
-thresholds, so its yield is low.
+Mining refactoring pairs from commit history has a yield problem, and the yield is not uniform
+across smells. Using keyword search over commit messages, it tracks **how objectively the smell can
+be defined**:
 
-This shaped the whole pipeline. Numbers and reasoning are in `docs/DECISOES_PROJETO.md`.
+| Smell | Yield | Why |
+|---|---|---|
+| Dead Code | 38% | binary: the code is gone or it is not |
+| Long Method | 19% | semi-objective: a numeric threshold on length |
+| Deep Nesting | 4% | structural but contextual |
+| Long Parameter List | 3% | "long" is a judgement call |
+| Magic Numbers | 1.2% (n = 1,376) | "magic" depends on the domain |
 
-## Dataset construction
+Five out of five points fall in the predicted order, monotonically decreasing.
 
-The pipeline mined 5,072 candidate pairs. An LLM judge (Gemma, running locally) approved
-616 of them. A human quality probe then audited a stratified sample of 50, blind to the AST
-proxy, with population precision reweighted by base rate and inter annotator agreement
-measured by Cohen's kappa. Two annotators, followed by an LLM assisted re audit.
+**But subjectivity turns out not to be destiny.** Anchoring the search on a linter **rule identifier**
+instead of on commit-message wording, and filtering the diff for the structural change that the
+refactoring implies, restores the yield of the subjective smells:
 
-Three decisions kept the dataset honest:
+| Smell | Keyword mining | Rule-ID anchoring |
+|---|---|---|
+| Long Parameter List | 3% | **77%** |
+| Magic Numbers | 1.2% | **19%** |
+| Deep Nesting | 4% | **12%** |
+| Long Method | 19% | **42%** |
 
-**Oracle firewall.** PyRef and Sourcery are reserved for evaluation and never produce
-training data. A tool cannot be both the teacher and the exam.
+Measured over a single batch of 672 judged candidates, of which 180 were real.
 
-**Repository level split.** Train and test never share a repository, so a model cannot
-memorise one project's idioms and score well on itself.
+The reading matters more than the numbers. What is subjective is the *natural language* people use
+to describe a change in a commit message. The change itself is often perfectly objective, and a
+linter rule already encodes that objectivity. Mining against the rule rather than against the prose
+converts a subjective criterion into a mineable one.
 
-**Quality probe before training.** The sample was audited before any fine tuning started,
-deliberately. Measuring the data after training the model tells you nothing you can act on.
+The honest note that goes with it: the initial pilot for Dead Code reported 60% and the full batch
+came in at 38%, because the first sample was not representative. The qualitative pattern held, the
+number did not.
+
+## The harder problem: telling a real smell from an apparent one
+
+A tool that rewrites code automatically has to answer a question detection alone does not: is this
+a smell that should be fixed, or code that only looks like one and must be left alone?
+
+Nested conditionals that implement a security check. A parameter list frozen by a stable public API.
+A magic number that is a protocol code. Each trips a detector, and each would be damaged by the
+refactoring the detector implies. A safety gate needs negative examples, and **labelled negative
+examples of this kind essentially do not exist**.
+
+The obvious move is to generate them with a language model and check them by hand. That fails for
+two reasons worth separating:
+
+**The model generates from its own prior, not from the real distribution.** It produces the
+prototypical archetype and leaves whole regions of the decision boundary uncovered.
+
+**Manual review fixes label precision, not coverage.** You cannot verify the absence of something
+that was never generated. Reviewing a biased sample carefully yields a carefully verified biased
+sample.
+
+**The approach adopted is anchored distillation**, in four moves. Mine a small real seed of code
+where an actual developer judged "this is fine", using linter suppressions and won't-fix markers as
+proxy labels. Use that seed as a few-shot anchor so generation orbits the real distribution instead
+of the model's prior. Review every example by hand, re-judging "genuinely not a smell" against
+"a smell that was merely suppressed". And **hold out a test set that is 100% real, never synthetic**,
+so the reported numbers mean something and the synthetic-to-real gap stays measurable.
+
+One source was examined and used only with caution. A public labelled smell dataset carries a *none*
+class that does not separate "not smelly" from "smelly but acceptable in context", which is exactly
+the distinction the gate needs, so it is usable only after manual re-labelling of the relevant
+slice.
+
+## Keeping the dataset honest
+
+Four decisions, each guarding against a specific way this kind of dataset goes wrong.
+
+**Roles are separated across model families.** The judge is Gemma and it only ever evaluates, never
+generates. Generation for two of the tiers uses different families. The fine-tuning target was
+**changed** from Qwen2.5-Coder to Stable Code Instruct precisely because the original target shared
+a family with one of the generators, which is a path to a model grading its own dialect.
+
+**Residual circularity is acknowledged rather than hidden.** The structural AST signal used in one
+tier's prompt was chosen specifically so the criteria would not come from the judge's own prose.
+
+**The oracles never touch training data.** PyRef acts as a deterministic validator producing ground
+truth, and Sourcery is the comparison baseline that the trained model has to match or beat. A tool
+cannot be both the teacher and the exam.
+
+**The split is by repository, not by example.** Train and test never share a repository, with
+assertions enforcing it, so a model cannot memorise one project's idioms and score well on itself.
+
+**Quality was measured before training, deliberately.** A stratified sample of 50 pairs was audited
+blind to the AST proxy, with population precision reweighted by base rate and agreement measured by
+Cohen's kappa, followed by an LLM-assisted re-audit. Measuring data quality after training the model
+tells you nothing you can act on.
+
+## An evaluation metric that was rejected
+
+CodeBLEU was discarded on purpose: it penalises a refactoring that is correct but different from the
+reference, which is the normal case. Evaluation instead uses smell resolution as the primary metric,
+plus behaviour preservation and non-introduction of new smells.
+
+## A line that was tested and abandoned
+
+Mining pull requests from four large projects was piloted and dropped. Only one of the four carried
+usable signal, and the empirical result is recorded rather than the idea being quietly forgotten.
 
 ## The five smells
 
