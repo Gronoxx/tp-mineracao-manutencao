@@ -49,6 +49,38 @@ The honest note that goes with it: the initial pilot for Dead Code reported 60% 
 came in at 38%, because the first sample was not representative. The qualitative pattern held, the
 number did not.
 
+## The harder problem: telling a real smell from an apparent one
+
+A tool that rewrites code automatically has to answer a question detection alone does not: is this
+a smell that should be fixed, or code that only looks like one and must be left alone?
+
+Nested conditionals that implement a security check. A parameter list frozen by a stable public API.
+A magic number that is a protocol code. Each trips a detector, and each would be damaged by the
+refactoring the detector implies. A safety gate needs negative examples, and **labelled negative
+examples of this kind essentially do not exist**.
+
+The obvious move is to generate them with a language model and check them by hand. That fails for
+two reasons worth separating:
+
+**The model generates from its own prior, not from the real distribution.** It produces the
+prototypical archetype and leaves whole regions of the decision boundary uncovered.
+
+**Manual review fixes label precision, not coverage.** You cannot verify the absence of something
+that was never generated. Reviewing a biased sample carefully yields a carefully verified biased
+sample.
+
+**The approach adopted is anchored distillation**, in four moves. Mine a small real seed of code
+where an actual developer judged "this is fine", using linter suppressions and won't-fix markers as
+proxy labels. Use that seed as a few-shot anchor so generation orbits the real distribution instead
+of the model's prior. Review every example by hand, re-judging "genuinely not a smell" against
+"a smell that was merely suppressed". And **hold out a test set that is 100% real, never synthetic**,
+so the reported numbers mean something and the synthetic-to-real gap stays measurable.
+
+One source was examined and used only with caution. A public labelled smell dataset carries a *none*
+class that does not separate "not smelly" from "smelly but acceptable in context", which is exactly
+the distinction the gate needs, so it is usable only after manual re-labelling of the relevant
+slice.
+
 ## Keeping the dataset honest
 
 Four decisions, each guarding against a specific way this kind of dataset goes wrong.
